@@ -238,7 +238,7 @@ def initPRD(resolution=100, rmin=1e-8, rmax=1e-6, std=0.549, mu=0.538):
 
 
 def getECSA(prd, radius):
-    return 4 * np.pi * np.trapz(y=(radius ** 2) * prd, x=radius)
+    return 4 * np.pi * np.trapezoid(y=(radius ** 2) * prd, x=radius)
 
 # ______________________________________Function which gives the integration event______________________________________
 def event_negative(t, y, operating_inputs, parameters, solver_variable_names, control_variables):
