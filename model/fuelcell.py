@@ -21,16 +21,16 @@ class PEMFC_1D:
         self.operating_inputs = operating_inputs
         self.parameters = parameters
         self.control_variables = {'Phi_a_des': self.operating_inputs['Phi_a_des'],
-                                                    'Phi_c_des': self.operating_inputs['Phi_c_des']}
+                                                'Phi_c_des': self.operating_inputs['Phi_c_des']}
         self.solver_variable_names = ['C_H2_agc', 'C_H2_agdl', 'C_H2_acl','C_H2_mem',
-                                                              'C_O2_mem', 'C_O2_ccl', 'C_O2_cgdl', 'C_O2_cgc', 'C_N2',
-                                                              'C_v_agc', 'C_v_agdl', 'C_v_acl', 'C_v_ccl', 'C_v_cgdl', 'C_v_cgc',
-                                                              's_agdl', 's_acl', 's_ccl', 's_cgdl',
-                                                              'lambda_acl', 'lambda_ccl', 'lambda_mem',
-                                                              'eta_c', 'Pasm', 'Paem', 'Pcsm', 'Pcem', 'Phi_asm', 'Phi_aem', 'Phi_csm','Phi_cem',
-                                                              'Wcp', 'Wa_inj', 'Wc_inj', 'Abp_a', 'Abp_c',
-                                                              'C_Pt2_mem', 'C_Pt2_ccl', 'delta_mem', 'S_N_ccl', 'theta_ccl',
-                                                              "Tagdl","Tacl","Tmem","Tccl", "Tcgdl"]
+                                                        'C_O2_mem', 'C_O2_ccl', 'C_O2_cgdl', 'C_O2_cgc', 'C_N2',
+                                                        'C_v_agc', 'C_v_agdl', 'C_v_acl', 'C_v_ccl', 'C_v_cgdl', 'C_v_cgc',
+                                                        's_agdl', 's_acl', 's_ccl', 's_cgdl',
+                                                        'lambda_acl', 'lambda_ccl', 'lambda_mem',
+                                                        'eta_c', 'Pasm', 'Paem', 'Pcsm', 'Pcem', 'Phi_asm', 'Phi_aem', 'Phi_csm','Phi_cem',
+                                                        'Wcp', 'Wa_inj', 'Wc_inj', 'Abp_a', 'Abp_c',
+                                                        'C_Pt2_mem', 'C_Pt2_ccl', 'delta_mem', 'S_N_ccl', 'theta_ccl',
+                                                        "Tagdl","Tacl","Tmem","Tccl", "Tcgdl"]
         self.micro_parameters = {"n_group_ptParticle": 10, "rmin": 1e-8, "rmax": 1e-6, "dr": 1e-6 / 10,
                                                       "R0": 2e-9, "Vm_Pt": 1.45e-5, "krdp": 1e-6, "Cpt2_ref": 1e-3,
                                                       "k1": 1e-6, "k1_ref": 1e-6, "k2": 1e-6, "k2_ref": 1e-6,"kdet_ref": 1e-6, "R0": 2e-9,
@@ -56,9 +56,9 @@ class PEMFC_1D:
         self.solver_variable_names.pop(index_theta_ccl)
         self.solver_variable_names[index_theta_ccl:index_theta_ccl] = [f'theta_ccl_{i}' for i in range(1, self.micro_parameters["n_group_ptParticle"] + 1)]
         #pd.DataFrame(self.solver_variable_names).to_csv('./var name.csv')
-        self.all_variable_names = self.solver_variable_names + ['t', 'Ucell','ecsa', 'S_sorp_acl', 'S_sorp_ccl',
-                                                                                                            'J_lambda_mem_acl', 'J_lambda_mem_ccl',
-                                                                                                            'Pagc', 'Pcgc', 'Phi_a_des', 'Phi_c_des',"Wasm_in"]
+        self.all_variable_names = self.solver_variable_names + ['t', 'Ucell','S_sorp_acl', 'S_sorp_ccl',
+                                                                                                    'J_lambda_mem_acl', 'J_lambda_mem_ccl',
+                                                                                                    'Pagc', 'Pcgc', "Wasm_in"]
         self.variables = {key: [] for key in self.all_variable_names}
         self.dif_eq = {('d' + key + ' / dt'): 0 for key in self.solver_variable_names}
         # Simulation setup
@@ -70,7 +70,8 @@ class PEMFC_1D:
         self.dt = 0
         self.dt_hist = []   
         self.loadprofile = []
-        self.elec_variables = {"Ueq": [], "Rp": [], "eta_act": [], "eta_conc": [], "i_fc": [], "fdrop": []}
+        self.elec_variables = {"Ueq": [], "Rmem": [], "Rccl": [], "Racl": [],
+                                           "eta_act": [], "eta_conc": [], "i_fc": [], "fdrop": []}
         self.x = initial_variable_values
         self.x_previous = 0
         self.y = 0
@@ -418,8 +419,6 @@ class PEMFC_1D:
         Wv_hum_in = M_H2O * Phi_ext * Psat(Text) / Pext * (x['Wcp'] / Mext) 
         Wc_inj_des = Wc_v_des - Wv_hum_in  # Desired humidifier flow rate
 
-        
-
         # Auxiliary dynamics 
         dif['dC_N2 / dt'] = (J_N2_in - J_N2_out) / Lgc
         dif['dPasm / dt'] = (Wasm_in - n_cell * Wasm_out) / (Vsm * Masm) * R * Tfc
@@ -551,13 +550,7 @@ class PEMFC_1D:
         for index, key in enumerate(self.solver_variable_names):
             self.variables[key].extend(list(sol.y[index]))
 
-        self.variables['ecsa'].extend(list(sol.y[index]))
-
         # Recovery of more variables
-        #   The control variables should be reinitialized. To be reviewed.
-
-        self.control_variables['Phi_a_des'] = self.operating_inputs['Phi_a_des']
-        self.control_variables['Phi_c_des'] = self.operating_inputs['Phi_c_des']
 
         for j in range(len(sol.t)):  # For each time...
             # ... recovery of i_fc.
@@ -569,10 +562,9 @@ class PEMFC_1D:
                 self.variables[key].append(flows_recovery[key])
             prd_ccl = [last_solver_variables[f"S_N_ccl_{i + 1}"] for i in range(self.micro_parameters["n_group_ptParticle"])]
             theta_ccl =  [last_solver_variables[f"theta_ccl_{i + 1}"] for i in range(self.micro_parameters["n_group_ptParticle"])]
-            self.variables["ecsa"][j] = getECSA(prd_ccl, self.micro_parameters["r_m"])
+
             #  recovery of Ucell.
             Ueq_t, Rmem_t, Rccl_t, Racl_t = calculate_cell_voltage_intermediate(last_solver_variables, self.parameters)
-            Rp_t = sum(Rmem_t)  + Rccl_t
             eta_c_component = calculate_eta_c_intermediate_values(last_solver_variables, self.operating_inputs, self.parameters)
             f_drop_t = eta_c_component["f_drop"]
             if f_drop_t == 1:
@@ -586,7 +578,9 @@ class PEMFC_1D:
             self.elec_variables["i_fc"].append(i_fc)
             self.elec_variables["fdrop"].append(f_drop_t)
             self.elec_variables["Ueq"].append(Ueq_t)
-            self.elec_variables["Rp"].append(Rp_t)
+            self.elec_variables["Rmem"].append(Rmem_t)
+            self.elec_variables["Rccl"].append(Rccl_t)
+            self.elec_variables["Racl"].append(Racl_t)
 
         self.variables["Ucell"].extend(calculate_cell_voltage(1, self.variables, self.operating_inputs,self.parameters))
         
