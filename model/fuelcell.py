@@ -562,7 +562,6 @@ class PEMFC_1D:
                 self.variables[key].append(flows_recovery[key])
             prd_ccl = [last_solver_variables[f"S_N_ccl_{i + 1}"] for i in range(self.micro_parameters["n_group_ptParticle"])]
             theta_ccl =  [last_solver_variables[f"theta_ccl_{i + 1}"] for i in range(self.micro_parameters["n_group_ptParticle"])]
-
             #  recovery of Ucell.
             Ueq_t, Rmem_t, Rccl_t, Racl_t = calculate_cell_voltage_intermediate(last_solver_variables, self.parameters)
             eta_c_component = calculate_eta_c_intermediate_values(last_solver_variables, self.operating_inputs, self.parameters)

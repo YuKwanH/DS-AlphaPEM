@@ -1,4 +1,7 @@
 import numpy as np
+from matplotlib.lines import Line2D
+from ast import literal_eval
+import re
 # Physical constants
 N_A = 6.022e23 # /mol
 F = 96485  # C.mol-1. It is the Faraday constant.
@@ -67,3 +70,26 @@ deltaS_HOR = 0.104 # J/(mol*K)
 # Display settings 
 regions = ["agdl", "acl", "mem", "ccl", "cgdl"]
 species = ["v", "O2", "H2", "s", "lambda"]
+
+
+
+temp_colors = {50.0: "#5b2a86", 60.0: "#2a9d8f", 70.0: "#f1c40f"}
+pressure_styles = {1.3: "-", 1.4: "--", 1.5: "-."}
+humidity_markers = {"RHC0.0": "o", "RHC0.5": "s", "RHA0.0_RHC0.0": "o", "RHA0.0_RHC0.5": "s", "RHA0.5_RHC0.0": "^", "RHA0.5_RHC0.5": "D"}
+
+def plot_condition(axis, x_values, y_values, label, linewidth=1.8, markersize=5):
+    temperature_match = re.search(r"T(?P<value>\d+(?:\.\d+)?)", label)
+    pressure_match = re.search(r"P(?P<value>\d+(?:\.\d+)?)", label)
+    humidity_tokens = re.findall(r"RH[AC]\d+(?:\.\d+)?", label)
+    temperature = float(temperature_match.group("value")) if temperature_match else None
+    pressure = float(pressure_match.group("value")) if pressure_match else None
+    humidity = float(humidity_tokens[0][2:]) if humidity_tokens else None
+    if temperature is not None and temperature > 200:
+        temperature = round(temperature - 273.15, 2)
+    if pressure is not None and pressure > 20:
+        pressure = round(pressure / 1000, 1) + 1
+    if humidity is not None and humidity > 1:
+        humidity = humidity/100
+    pressure = float(pressure_match.group("value")) if pressure_match else None
+    humidity = "_".join(humidity_tokens) if humidity_tokens else None
+    axis.plot(x_values, y_values, color=temp_colors.get(temperature, "0.35"), linestyle=pressure_styles.get(pressure, "-"), marker=humidity_markers.get(humidity, "o"), linewidth=linewidth, markersize=markersize)

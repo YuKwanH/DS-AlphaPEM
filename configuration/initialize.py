@@ -60,6 +60,25 @@ Psat_ini = 101325 * 10 ** (-2.1794 + 0.02953 * (Tfc - 273.15) - 9.1837e-5 * (Tfc
 slim = a_slim * (Pc_des / 1e5) + b_slim
 s_switch = a_switch * slim
 
+def kinetics(i, x, a_slim, b_slim, a_switch, kappa_c, i0_c_ref, operating_inputs):
+
+    """ 
+    This function is dedicated to calibrating the kinetic parameters for the cathode catalyst layer, 
+    which are used in the calculation of eta_c. It returns the intermediate values needed for calculating eta_c, 
+    including Ueq, f_drop, eta_c, Rohm, and Rccl.
+    """
+    slim = a_slim * (operating_inputs['Pc_des'] / 1e5) + b_slim
+    s_switch = a_switch * slim
+    i_fc = np.array(x["i_fc"], dtype=float)
+    s_ccl = np.array(x["s_ccl"], dtype=float)
+    Tccl = np.array(x["Tccl"], dtype=float)
+    C_O2_ccl = np.array(x["C_O2_ccl"], dtype=float)
+    C_H2_acl = np.array(x["C_H2_acl"], dtype=float)
+    Ueq = (E0 - 8.5e-4 * (Tccl - 298.15) + R * Tccl / (2 * F) * (np.log(R * Tccl * C_H2_acl / Pref) + 0.5 * np.log(R * Tccl * C_O2_ccl / Pref)))
+    f_drop = 0.5 * (1.0 - np.tanh((4 * s_ccl - 2 * slim - 2 * s_switch) / (slim - s_switch)))
+    eta_c = (1 / f_drop * R * Tfc / (alpha_c * F) * np.log((i_fc) / i0_c_ref * (C_O2ref / C_O2_ccl) ** kappa_c) * np.exp(Eact / R * (1 / 353 - 1 / Tccl)))
+    return Ueq, f_drop, eta_c
+
 #   Initial fuel cell states
 def init_x(operating_inputs, parameters):
     C_v_ini =  Psat(343.13) / (R * 343.13)  #*Phi_des_moy # mol.m-3. It is the initial vapor concentration.
