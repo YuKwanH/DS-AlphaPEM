@@ -28,7 +28,7 @@ current_parameters = {'t_step': (0, 3600, 100, 1.5), 'i_step': (0.5e4, 1.5e4),
                                         'delta_pola': (30, 30, 0.1e4, 60), 'i_max_pola': 1.65e4, # 50A/30e-4
                                         'i_EIS': 1.0e4, 'ratio_EIS': 0.05, 't_EIS': 15, 'f_EIS': (-3, 5, 90, 50)}
 
-undetermined_physical_parameters = {'epsilon_gdl': 0.6, "epsilon_cl": 0.3,
+undetermined_physical_parameters = {'epsilon_gdl': 0.55, "epsilon_cl": 0.3,
                                                                 'epsilon_mc': 0.399,'epsilon_c': 0.299, 
                                                                 'e': 3, 'kappa_co': 37.2, 'Re': 2.2e-7, 'tau': 1.01, 
                                                                 'i0_c_ref': 10.6, 'kappa_c': 0.1, 'C_scl': 1e8, 
