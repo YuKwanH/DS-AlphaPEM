@@ -28,12 +28,12 @@ current_parameters = {'t_step': (0, 3600, 100, 1.5), 'i_step': (0.5e4, 1.5e4),
                                         'delta_pola': (30, 30, 0.1e4, 60), 'i_max_pola': 1.65e4, # 50A/30e-4
                                         'i_EIS': 1.0e4, 'ratio_EIS': 0.05, 't_EIS': 15, 'f_EIS': (-3, 5, 90, 50)}
 
-undetermined_physical_parameters = {'epsilon_gdl': 0.6, "epsilon_cl": 0.4,
+undetermined_physical_parameters = {'epsilon_gdl': 0.6, "epsilon_cl": 0.3,
                                                                 'epsilon_mc': 0.399,'epsilon_c': 0.299, 
                                                                 'e': 3, 'kappa_co': 37.2, 'Re': 2.2e-7, 'tau': 1.01, 
                                                                 'i0_c_ref': 10.6, 'kappa_c': 0.1, 'C_scl': 1e8, 
                                                                 'a_slim': 0.2, 'b_slim': 0.3, 'a_switch': 0.3,
-                                                                "Hcl": 1e-5, "Hgdl": 2.5e-4}
+                                                                "Hcl": 1e-5, "Hgdl": 2.e-4}
 
 computing_parameters = {'max_step': max_step, 'n_gdl': 10,'n_mem':10,'n_group_pt':10,
                                             't_purge': t_purge, 'type_fuel_cell': type_fuel_cell, 'type_control': type_control, 'type_purge': type_purge}
@@ -76,7 +76,8 @@ def kinetics(i, x, a_slim, b_slim, a_switch, kappa_c, i0_c_ref, operating_inputs
     C_H2_acl = np.array(x["C_H2_acl"], dtype=float)
     Ueq = (E0 - 8.5e-4 * (Tccl - 298.15) + R * Tccl / (2 * F) * (np.log(R * Tccl * C_H2_acl / Pref) + 0.5 * np.log(R * Tccl * C_O2_ccl / Pref)))
     f_drop = 0.5 * (1.0 - np.tanh((4 * s_ccl - 2 * slim - 2 * s_switch) / (slim - s_switch)))
-    eta_c = (1 / f_drop * R * Tccl / (alpha_c * F) * np.log((i_fc) / i0_c_ref * (C_O2ref / C_O2_ccl) ** kappa_c) * np.exp(Eact / R * (1 / 353 - 1 / Tccl)))
+    i0_c = i0_c_ref * np.exp(-Eact / R * (1 / Tccl - 1 / 353))
+    eta_c = (1 / f_drop * R * Tccl / (alpha_c * F) * np.log((i_fc) / i0_c * (C_O2ref / C_O2_ccl) ** kappa_c))
     return Ueq, f_drop, eta_c
 
 #   Initial fuel cell states
