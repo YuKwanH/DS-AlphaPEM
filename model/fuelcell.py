@@ -251,21 +251,34 @@ class PEMFC_1D:
                                            (x[f'C_v_cgdl_{i + 1}'] - x[f'C_v_cgdl_{i}']) / (Hgdl / n_gdl)
         Jv_ccl_cgdl = - 2 * Dc_eff(s_ccl_cgdl, epsilon_mean, Pccl_cgdl, (x[f"Tcgdl_1"] + x['Tccl']) / 2, epsilon_c, epsilon_gdl) * \
                                 (x['C_v_cgdl_1'] - x["C_v_ccl"]) / (Hgdl / n_gdl + Hcl/2)
+        
         # saturation front 
-        if x['s_acl'] > 0 and x["C_v_acl"] > C_v_sat(x['Tacl']) and Jv_agdl_agdl[-1] < 0:
+        if x['s_acl'] > 0 and x["C_v_acl"] > C_v_sat(x['Tacl']) and Jv_agdl_agdl[-1] < 0 and x['C_v_agdl_1'] < C_v_sat(Tfc):
             Jwater = -Jv_agdl_agdl[-1]
-            s_front_agdl = (C_v_sat(333.15) - x["C_v_agdl_1"]) * Da_eff(0, epsilon_c, Pc_des, Tfc, epsilon_c, epsilon_gdl) * epsilon_gdl **1.5 / (Jwater)
+            s_front_agdl = (C_v_sat(Tfc) - x["C_v_agdl_1"]) * Da_eff(0, epsilon_c, Pc_des, Tfc, epsilon_c, epsilon_gdl) * epsilon_gdl **1.5 / (Jwater)
+            if s_front_agdl > Hgdl and s_front_agdl < Hgdl*1.1:
+                s_front_agdl = Hgdl
         elif x['C_v_agc'] > C_v_sat(Tfc) and Jv_agc_agdl < 0:
             s_front_agdl = 0
         else:
             s_front_agdl = Hgdl
-        if x['s_ccl'] > 0 and x["C_v_ccl"] > C_v_sat(x['Tccl']) and Jv_cgdl_cgdl[1] > 0:
-            Jwater = Jv_cgdl_cgdl[1]
-            s_front_cgdl = Hgdl - (C_v_sat(333.15) - x["C_v_cgdl_10"]) * Dc_eff(0, epsilon_c, Pc_des, Tfc, epsilon_c, epsilon_gdl) * epsilon_gdl **1.5 / (Jwater)
+        if x['s_ccl'] > 0 and x["C_v_ccl"] > C_v_sat(x['Tccl']) and Jv_cgdl_cgdl[0] > 0 and x['C_v_cgdl_10'] < C_v_sat(Tfc):
+            Jwater = Jv_cgdl_cgdl[0]
+            s_front_cgdl = Hgdl - (C_v_sat(Tfc) - x["C_v_cgdl_10"]) * Dc_eff(0, epsilon_c, Pc_des, Tfc, epsilon_c, epsilon_gdl) * epsilon_gdl **1.5 / (Jwater)
+            if s_front_cgdl < 0 and s_front_cgdl > -Hgdl*0.1:
+                s_front_cgdl = 0
         elif x['C_v_cgc'] > C_v_sat(Tfc) and Jv_cgdl_cgc > 0:
             s_front_cgdl = Hgdl
         else:
             s_front_cgdl = 0
+        
+        if s_front_agdl < 0 or s_front_cgdl < 0:
+            raise ValueError("Negative saturation {}({}) front position. Check the inputs and the model assumptions.".format("anode" if s_front_agdl < 0 else "cathode", s_front_agdl if s_front_agdl < 0 else s_front_cgdl))
+        if s_front_agdl > Hgdl or s_front_cgdl > Hgdl:
+            print( x["C_v_cgdl_10"])
+            raise ValueError("Saturation front position {} ({}) exceeds the GDL thickness. Check the inputs and the model assumptions.".format("anode" if s_front_agdl > Hgdl else "cathode", s_front_agdl if s_front_agdl > Hgdl else s_front_cgdl))
+        
+
         #_____________________________________Liquid water flows (kg.m-2.s-1)__________________________________________
         if s_front_agdl == 0:
             Jl_agdl_agc = x["s_agdl_1"] **3 / (1 - x["s_agdl_1"]) * rho_H2O(x["Tagdl_1"]) *(1/1298)  *4.8 * 1e-5/3e-4
@@ -420,7 +433,7 @@ class PEMFC_1D:
         Wc_inj_des = Wc_v_des - Wv_hum_in  # Desired humidifier flow rate
 
         # Auxiliary dynamics 
-        dif['dC_N2 / dt'] = (J_N2_in - J_N2_out) / Lgc
+        
         dif['dPasm / dt'] = (Wasm_in - n_cell * Wasm_out) / (Vsm * Masm) * R * Tfc
         dif['dPaem / dt'] = (n_cell * Waem_in - Waem_out) / (Vem * Maem) * R * Tfc
         dif['dPcsm / dt'] = (Wcsm_in - n_cell * Wcsm_out) / (Vsm * Mcsm) * R * Tfc
@@ -456,23 +469,33 @@ class PEMFC_1D:
             if i == 0: #AGC/AGDL interface
                 dif['dC_v_agdl_1 / dt']    = ((Jv_agc_agdl - Jv_agdl_agdl[0]) / (Hgdl / n_gdl + Hgc/2) + Sv_agdl[0])/ (epsilon_gdl * (1 - x['s_agdl_1']))
                 dif['dC_H2_agdl_1 / dt'] = (J_H2_agc_agdl - J_H2_agdl_agdl[0]) / (Hgdl / n_gdl + Hgc/2) / (epsilon_gdl * (1 - x['s_agdl_1']))
-                dif['ds_agdl_1 / dt']        = ((Jl_agdl_agc - Jl_agdl_agdl[0]) / (Hgdl / n_gdl + Hgc/2) + M_H2O * Sl_agdl[0]) / (rho_H2O(x[f"Tagdl_1"]) * epsilon_gdl)
                 dif["dTagdl_1 / dt"]         = ((JT_agc_agdl - JT_agdl[0]) / (Hgdl/n_gdl + Hgc/2) + Sec_agdl)/(Cp_gdl * rho_gdl)
             elif i == n_gdl-1: #AGDL/ACL interface
                 dif[f"dTagdl_{n_gdl} / dt"]         = ((JT_agdl[n_gdl-2] - JT_agdl_acl) / (Hgdl/n_gdl + Hcl) + Sec_agdl)/(Cp_gdl * rho_gdl)
                 dif[f'dC_v_agdl_{n_gdl} / dt']    = ((Jv_agdl_agdl[n_gdl - 2] - Jv_agdl_acl) / (Hgdl / n_gdl + Hcl) + Sv_agdl[n_gdl-1]) / (epsilon_gdl * (1 - x[f's_agdl_{n_gdl}']))
                 dif[f'dC_H2_agdl_{n_gdl} / dt'] = (J_H2_agdl_agdl[n_gdl - 2] - J_H2_agdl_acl) / (Hgdl / n_gdl + Hcl) / (epsilon_gdl * (1 - x[f's_agdl_{n_gdl}']))
-                dif[f'ds_agdl_{n_gdl} / dt']        = ((Jl_agdl_agdl[n_gdl - 2] - Jl_agdl_acl) / (Hgdl / n_gdl) + M_H2O * Sl_agdl[n_gdl-1]) / (rho_H2O(x[f"Tcgdl_{n_gdl}"]) * epsilon_gdl)
             else:
                 dif[f"dTagdl_{i+1} / dt"]        = ((JT_agdl[i-1] - JT_agdl[i]) / (Hgdl/n_gdl) + Sec_agdl)/(Cp_gdl * rho_gdl)
                 dif[f'dC_v_agdl_{i+1} / dt']   = ((Jv_agdl_agdl[i - 1] - Jv_agdl_agdl[i]) / (Hgdl / n_gdl) + Sv_agdl[i-1]) / (epsilon_gdl * (1 - x[f's_agdl_{i+1}']))
                 dif[f'dC_H2_agdl_{i+1} / dt'] =  (J_H2_agdl_agdl[i - 1] - J_H2_agdl_agdl[i]) / (Hgdl / n_gdl) / (epsilon_gdl * (1 - x[f's_agdl_{i+1}']))
-                if s_front_agdl > 0:
-                    node_front = int((i+1) * s_front_agdl / Hgdl)
-                    if i+1 <= node_front:
-                        dif[f'ds_agdl_{i+1} / dt']        = ((Jl_agdl_agdl[i - 1] - Jl_agdl_agdl[i]) / (Hgdl / n_gdl) + M_H2O * Sl_agdl[i-1]) / (rho_H2O(x[f"Tcgdl_{i+1}"]) * epsilon_gdl)
-                    else:
-                        dif[f'ds_agdl_{i+1} / dt']        = 0
+
+            if s_front_agdl == Hgdl:
+                dif[f'ds_agdl_{i+1} / dt']        = 0
+            elif s_front_agdl == 0:
+                if i == 0: #AGC/AGDL interface
+                    dif[f'ds_agdl_{i+1} / dt']        = ((Jl_agdl_agc - Jl_agdl_agdl[0]) / (Hgdl / n_gdl + Hgc/2) + M_H2O * Sl_agdl[0]) / (rho_H2O(x[f"Tagdl_1"]) * epsilon_gdl)
+                elif i == n_gdl-1: #AGDL/ACL interface
+                    dif[f'ds_agdl_{n_gdl} / dt']    = ((Jl_agdl_agdl[n_gdl - 2] - Jl_agdl_acl) / (Hgdl / n_gdl) + M_H2O * Sl_agdl[n_gdl-1]) / (rho_H2O(x[f"Tagdl_{n_gdl}"]) * epsilon_gdl)
+                else:
+                    dif[f'ds_agdl_{i+1} / dt']        = ((Jl_agdl_agdl[i - 1] - Jl_agdl_agdl[i]) / (Hgdl / n_gdl) + M_H2O * Sl_agdl[i-1]) / (rho_H2O(x[f"Tagdl_{i+1}"]) * epsilon_gdl)
+            else:
+                node_front = int((i+1) * s_front_agdl / Hgdl)
+                if i+1 <= node_front:
+                    dif[f'ds_agdl_{i+1} / dt']        = 0
+                elif i == n_gdl-1: #AGDL/ACL interface
+                    dif[f'ds_agdl_{n_gdl} / dt']    = ((Jl_agdl_agdl[n_gdl - 2] - Jl_agdl_acl) / (Hgdl / n_gdl) + M_H2O * Sl_agdl[n_gdl-1]) / (rho_H2O(x[f"Tagdl_{n_gdl}"]) * epsilon_gdl)
+                else:
+                    dif[f'ds_agdl_{i+1} / dt']        = ((Jl_agdl_agdl[i - 1] - Jl_agdl_agdl[i]) / (Hgdl / n_gdl) + M_H2O * Sl_agdl[i-1]) / (rho_H2O(x[f"Tagdl_{i+1}"]) * epsilon_gdl)
                 
         # ACL dynamics
         dif['ds_acl / dt']       = (Jl_agdl_acl /  (Hgdl / n_gdl) + M_H2O * Sl_acl) / (rho_H2O(x["Tacl"]) * epsilon_cl)
@@ -506,27 +529,38 @@ class PEMFC_1D:
             if i == 0:
                 dif['dC_v_cgdl_1 / dt'] = ((Jv_ccl_cgdl - Jv_cgdl_cgdl[0]) / (Hgdl / n_gdl + Hcl/2) + Sv_cgdl[0]) / (epsilon_gdl * (1 - x['s_cgdl_1']))
                 dif['dC_O2_cgdl_1 / dt'] = (J_O2_ccl_cgdl - J_O2_cgdl_cgdl[0]) / (Hgdl / n_gdl + Hcl/2)/ (epsilon_gdl * (1 - x['s_cgdl_1']))
-                dif['ds_cgdl_1 / dt'] = ((Jl_ccl_cgdl - Jl_cgdl_cgdl[0]) / (Hgdl / n_gdl + Hcl/2) + M_H2O * Sl_cgdl[0]) / (rho_H2O(x["Tcgdl_1"]) * epsilon_gdl)
                 dif["dTcgdl_1 / dt"] = ((JT_ccl_cgdl - JT_cgdl[0]) / (Hgdl/n_gdl + Hcl/2) + Sec_cgdl)/(Cp_gdl * rho_gdl)
             elif i == n_gdl-1:
                 dif[f'dC_v_cgdl_{n_gdl} / dt'] = ((Jv_cgdl_cgdl[n_gdl - 2] - Jv_cgdl_cgc) / (Hgdl / n_gdl + Hgc/2) + Sv_cgdl[n_gdl-1]) / (epsilon_gdl * (1 - x[f's_cgdl_{n_gdl}']))
                 dif[f'dC_O2_cgdl_{n_gdl} / dt'] = (J_O2_cgdl_cgdl[n_gdl - 2] - J_O2_cgdl_cgc) / (Hgdl / n_gdl + Hgc/2) / (epsilon_gdl * (1 - x[f's_cgdl_{n_gdl}']))
-                dif[f'ds_cgdl_{n_gdl} / dt'] = ((Jl_cgdl_cgdl[n_gdl - 2] - Jl_cgdl_cgc) / (Hgdl / n_gdl + Hgc/2) + M_H2O * Sl_cgdl[n_gdl-1]) / (rho_H2O(x[f"Tcgdl_{n_gdl}"]) * epsilon_gdl)
                 dif[f"dTcgdl_{n_gdl} / dt"] = ((JT_cgdl[n_gdl-2] - JT_cgdl_cgc) / (Hgdl/n_gdl + Hgc/2) + Sec_cgdl)/(Cp_gdl * rho_gdl)
             else:
                 dif[f'dC_v_cgdl_{i+1} / dt'] = ((Jv_cgdl_cgdl[i - 1] - Jv_cgdl_cgdl[i]) / (Hgdl / n_gdl) + Sv_cgdl[i-1]) / (epsilon_gdl * (1 - x[f's_cgdl_{i+1}']))
                 dif[f'dC_O2_cgdl_{i+1} / dt'] = (J_O2_cgdl_cgdl[i - 1] - J_O2_cgdl_cgdl[i]) / (Hgdl / n_gdl) / (epsilon_gdl * (1 - x[f's_cgdl_{i+1}']))
                 dif[f"dTcgdl_{i+1} / dt"] = ((JT_cgdl[i-1] - JT_cgdl[i]) / (Hgdl/n_gdl) + Sec_cgdl)/(Cp_gdl * rho_gdl)
-                if s_front_cgdl > 0:
-                    node_front = int((i+1) * s_front_cgdl / Hgdl)
-                    if i+1 <= node_front:
-                        dif[f'ds_cgdl_{i+1} / dt'] = ((Jl_cgdl_cgdl[i - 1] - Jl_cgdl_cgdl[i]) / (Hgdl / n_gdl) + M_H2O * Sl_cgdl[i-1]) / (rho_H2O(x[f"Tcgdl_{i+1}"]) * epsilon_gdl)
-                    else:
-                        dif[f'ds_cgdl_{i+1} / dt'] = 0
+
+            if s_front_cgdl == 0:
+                dif[f'ds_cgdl_{i+1} / dt']        = 0
+            elif s_front_cgdl == Hgdl: # CGC is fully humidified
+                if i == 0: #CCL/CGDL interface
+                    dif['ds_cgdl_1 / dt'] = ((Jl_ccl_cgdl - Jl_cgdl_cgdl[0]) / (Hgdl / n_gdl + Hcl/2) + M_H2O * Sl_cgdl[0]) / (rho_H2O(x["Tcgdl_1"]) * epsilon_gdl)
+                elif i == n_gdl-1: #CGDL/CGC interface
+                    dif[f'ds_cgdl_{n_gdl} / dt'] = ((Jl_cgdl_cgdl[n_gdl - 2] - Jl_cgdl_cgc) / (Hgdl / n_gdl + Hgc/2) + M_H2O * Sl_cgdl[n_gdl-1]) / (rho_H2O(x[f"Tcgdl_{n_gdl}"]) * epsilon_gdl)
+                else:
+                    dif[f'ds_cgdl_{i+1} / dt'] = ((Jl_cgdl_cgdl[i - 1] - Jl_cgdl_cgdl[i]) / (Hgdl / n_gdl) + M_H2O * Sl_cgdl[i-1]) / (rho_H2O(x[f"Tcgdl_{i+1}"]) * epsilon_gdl)
+            else: 
+                node_front = int((i+1) * s_front_cgdl / Hgdl)
+                if i+1 >= node_front:
+                    dif[f'ds_cgdl_{i+1} / dt']  = 0
+                elif i == 0: #CCL/CGDL interface
+                    dif['ds_cgdl_1 / dt'] = ((Jl_ccl_cgdl - Jl_cgdl_cgdl[0]) / (Hgdl / n_gdl + Hcl/2) + M_H2O * Sl_cgdl[0]) / (rho_H2O(x["Tcgdl_1"]) * epsilon_gdl)
+                else:
+                    dif[f'ds_cgdl_{i+1} / dt']    =((Jl_cgdl_cgdl[i - 1] - Jl_cgdl_cgdl[i]) / (Hgdl / n_gdl) + M_H2O * Sl_cgdl[i-1]) / (rho_H2O(x[f"Tcgdl_{i+1}"]) * epsilon_gdl)
 
         # CGC dynamics
         dif['dC_v_cgc / dt'] = (Jv_c_in - Jv_c_out) / Lgc + Jv_cgdl_cgc / Hgc
         dif['dC_O2_cgc / dt'] = (J_O2_in - J_O2_out) / Lgc + J_O2_cgdl_cgc / Hgc
+        dif['dC_N2 / dt'] = (J_N2_in - J_N2_out) / Lgc
 
         # Mapping the gradients
         gradient = []
