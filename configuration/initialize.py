@@ -29,11 +29,11 @@ current_parameters = {'t_step': (0, 3600, 100, 1.5), 'i_step': (0.5e4, 1.5e4),
                                         'i_EIS': 1.0e4, 'ratio_EIS': 0.05, 't_EIS': 15, 'f_EIS': (-3, 5, 90, 50)}
 
 undetermined_physical_parameters = {'epsilon_gdl': 0.55, "epsilon_cl": 0.3,
-                                                                'epsilon_mc': 0.399,'epsilon_c': 0.299, 
-                                                                'e': 3, 'kappa_co': 37.2, 'Re': 2.2e-7, 'tau': 1.01, 
-                                                                'i0_c_ref': 10.6, 'kappa_c': 0.1, 'C_scl': 1e8, 
-                                                                'a_slim': 0.2, 'b_slim': 0.3, 'a_switch': 0.3,
-                                                                "Hcl": 1e-5, "Hgdl": 2.e-4}
+                                    'epsilon_mc': 0.399,'epsilon_c': 0.299, 
+                                    'e': 3, 'kappa_co': 37.2, 'Re': 2.2e-7, 'tau': 1.01, 
+                                    'i0_c_ref': 10.6, 'kappa_c': 0.1, 'C_scl': 1e8, 
+                                    'a_slim': 0.2, 'b_slim': 0.3, 'a_switch': 0.3,
+                                    "Hcl": 1e-5, "Hgdl": 2.e-4}
 
 computing_parameters = {'max_step': max_step, 'n_gdl': 10,'n_mem':10,'n_group_pt':10,
                                             't_purge': t_purge, 'type_fuel_cell': type_fuel_cell, 'type_control': type_control, 'type_purge': type_purge}
