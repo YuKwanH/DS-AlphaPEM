@@ -3,7 +3,7 @@ from configuration.settings import *
 from model.coefficients import *
 from scipy.optimize import fsolve
 
-class PEMFC_1D:
+class PEMFC_stat:
     def __init__(self, parameters, operation_inputs):
         self.parameters = parameters
         self.operation_inputs = operation_inputs
@@ -16,12 +16,13 @@ class PEMFC_1D:
         Win_a, Wout_a = self.operation_inputs['Win_a'], self.operation_inputs['Wout_a']
         Hcl, Hgdl, Hmem = self.parameters['Hcl'], self.parameters['Hgdl'], self.parameters['Hmem']
         Lgc, Wgc, Hgc = self.parameters['Lgc'], self.parameters['Wgc'], self.parameters['Hgc']
+        epsilon_gdl, epsilon_cl, epsilon_c, epsilon_mc = self.parameters["epsilon_gdl"], self.parameters["epsilon_cl"], self.parameters["epsilon_c"], self.parameters["epsilon_mc"]
 
         # Implement the solution of the PEMFC model here using the coefficients and parameters
         Srxn = i / (2 * F) # mol/s/m^2
         ### Water inlet
-        Cv_in_a = Phi_a_des * Csat(Tfc)
-        Cv_in_c = Phi_c_des * Csat(Tfc)
+        Cv_in_a = Phi_a_des * C_v_sat(Tfc)
+        Cv_in_c = Phi_c_des * C_v_sat(Tfc)
 
         # ------------------------------ Initial guess------------------------------ #
         Jnet = 0
@@ -30,22 +31,22 @@ class PEMFC_1D:
         ### First solve the gdl vapor profile
         Cv_cgc = (Jw_ca * Lgc / Hgc + Cv_in_c * Win_c)/Wout_c
         Cv_agc = (Jw_an * Lgc / Hgc + Cv_in_a * Win_a)/Wout_a
-        Cv_a_inter = Cv_agc + Jw_an/h_conv(Pa_des, Tfc, Wgc, Hgc)
-        Cv_acl = Cv_a_inter + Hgdl/Dc(Pa_des, Tfc) * Jw_an
-        Cv_c_inter = Cv_cgc + Jw_ca/h_conv(Pc_des, Tfc, Wgc, Hgc)
-        Cv_ccl = Cv_c_inter - Hgdl/Dc(Pc_des, Tfc) * -Jw_ca
+        Cv_a_inter = Cv_agc + Jw_an/h_a(Pa_des, Tfc, Wgc, Hgc)
+        Cv_acl = Cv_a_inter + Hgdl/Da_eff(0,epsilon_gdl,Pa_des, Tfc,epsilon_c,epsilon_gdl) * Jw_an
+        Cv_c_inter = Cv_cgc + Jw_ca/h_c(Pa_des, Tfc, Wgc, Hgc)
+        Cv_ccl = Cv_c_inter - Hgdl/Dc_eff(0,epsilon_gdl,Pc_des, Tfc,epsilon_c,epsilon_gdl) * -Jw_ca
 
         # determine the front position of the saturation in GDL
-        if Cv_ccl > Csat(Tfc) and Cv_cgc < Csat(Tfc):
-            s_front_cgdl = Hgdl - (Csat(Tfc) - Cv_c_inter) * (Dc(Pc_des, Tfc) / -Jw_ca)
-        elif Cv_cgc > Csat(Tfc) and Cv_ccl > Csat(Tfc):
+        if Cv_ccl > C_v_sat(Tfc) and Cv_cgc < C_v_sat(Tfc):
+            s_front_cgdl = Hgdl - (C_v_sat(Tfc) - Cv_c_inter) * (Dc_eff(0,epsilon_gdl,Pc_des, Tfc,epsilon_c,epsilon_gdl) / -Jw_ca)
+        elif Cv_cgc > C_v_sat(Tfc) and Cv_ccl > C_v_sat(Tfc):
             s_front_cgdl = Hgdl
         else:
             s_front_cgdl = 0
 
-        if Cv_acl > Csat(Tfc) and Cv_agc < Csat(Tfc):
-            s_front_agdl = (Csat(Tfc) - Cv_a_inter) * (Dc(Pa_des, Tfc) / Jw_an)
-        elif Cv_agc > Csat(Tfc) and Cv_acl > Csat(Tfc):
+        if Cv_acl > C_v_sat(Tfc) and Cv_agc < C_v_sat(Tfc):
+            s_front_agdl = (C_v_sat(Tfc) - Cv_a_inter) * (Da_eff(0,epsilon_gdl,Pa_des, Tfc,epsilon_c,epsilon_gdl) / Jw_an)
+        elif Cv_agc > C_v_sat(Tfc) and Cv_acl > C_v_sat(Tfc):
             s_front_agdl = 0
         else:
             s_front_agdl = Hgdl
@@ -58,7 +59,7 @@ class PEMFC_1D:
         i_node = 0
         for x in np.linspace(0, Hgdl, 10):
             # CGDL saturation profile
-            rhs = (M_H2O * Jw_ca * (s_front_cgdl-x)) / (-sigma(Tfc) * K0(epsilon_gdl, epsilon_c)/nu_l(Tfc)* np.cos(theta_c)*(epsilon_gdl/K0(epsilon_gdl,epsilon_c))**0.5)
+            rhs = (M_H2O * Jw_ca * (s_front_cgdl-x)) / (-sigma(Tfc) * K0(epsilon_gdl, epsilon_c, epsilon_gdl)/nu_l(Tfc)* np.cos(theta_c_gdl)*(epsilon_gdl/K0(epsilon_gdl,epsilon_c,epsilon_gdl))**0.5)
             def s_cgdl_func(n):
                 return 0.35425 * n ** 4 - 0.848 * n **5 + 0.6315 * n ** 6 - rhs
             if x < s_front_cgdl:
@@ -67,7 +68,7 @@ class PEMFC_1D:
                 solution = [0]
             s_cgdl[i_node] = solution[0]
             # AGDL saturation profile
-            rhs = (M_H2O * Jw_an * (s_front_agdl-x)) / (-sigma(Tfc) * K0(epsilon_gdl, epsilon_c)/nu_l(Tfc)* np.cos(theta_c)*(epsilon_gdl/K0(epsilon_gdl,epsilon_c))**0.5)
+            rhs = (M_H2O * Jw_an * (s_front_agdl-x)) / (-sigma(Tfc) * K0(epsilon_gdl, epsilon_c, epsilon_gdl)/nu_l(Tfc)* np.cos(theta_c_gdl)*(epsilon_gdl/K0(epsilon_gdl,epsilon_c,epsilon_gdl))**0.5)
             def s_agdl_func(n):
                 return 0.35425 * n ** 4 - 0.848 * n **5 + 0.6315 * n ** 6 - rhs
             if x > s_front_agdl:
@@ -76,16 +77,16 @@ class PEMFC_1D:
                 solution = [0]
             s_agdl[i_node] = solution[0]
             # Vapor concentration profile
-            Cv_cgdl[i_node] = Cv_c_inter + (Hgdl-x)/Dc(Pc_des, Tfc) * Jw_ca
-            Cv_agdl[i_node] = Cv_a_inter + (x)/Dc(Pa_des, Tfc) * Jw_an
+            Cv_cgdl[i_node] = Cv_c_inter + (Hgdl-x)/Dc_eff(0,epsilon_gdl,Pc_des, Tfc,epsilon_c,epsilon_gdl) * Jw_ca
+            Cv_agdl[i_node] = Cv_a_inter + (x)/Da_eff(0,epsilon_gdl,Pa_des, Tfc,epsilon_c,epsilon_gdl) * Jw_an
             i_node += 1
 
         # Water content
-        if Cv_ccl > Csat(Tfc):
+        if Cv_ccl > C_v_sat(Tfc):
             lambda_ccl = np.min([14 + 8*s_cgdl[0], 22])
         else:
             lambda_ccl = np.min([lambda_eq(Cv_ccl, 0, Tfc, 20) + Jw_ca * M_eq / (epsilon_cl * Hcl * 1.3 *rho_mem) , 14])
-        if Cv_acl > Csat(Tfc):
+        if Cv_acl > C_v_sat(Tfc):
             lambda_acl = np.min([14 + 8*s_agdl[0], 22])
         else:
             lambda_acl = np.min([lambda_eq(Cv_acl, 0, Tfc, 20) + Jw_an * M_eq / (epsilon_cl * Hcl * 1.3 *rho_mem) , 14])
@@ -94,33 +95,41 @@ class PEMFC_1D:
         lambda_mem = [lambda_ccl * np.exp(x/Klambda) for x in np.linspace( -2e-5, 0, 10)]
 
         Jmem = 2.5/22 * i / F * (lambda_ccl - lambda_acl* np.exp(parameters["Hmem"]/Klambda)) / (np.exp(parameters["Hmem"]/Klambda) - 1)
-        
+        n_iter = 0
+        Ksearch = 0.01
         # ------------------------------ Solution ------------------------------ #
-        while abs(Jnet - Jmem) > 1e-4:
+        while abs(Jnet - Jmem) > 1e-5:
 
-            Jnet += 0.01 * (Jmem - Jnet)
+            n_iter += 1
+            if n_iter == 1000:
+                Ksearch *= 0.5
+            if n_iter ==3000:
+                Ksearch *= 0.5
+            if n_iter > 5000:
+                break
+            Jnet += Ksearch * (Jmem - Jnet)
             Jw_ca = i / (2 * F) - Jnet
             Jw_an = Jnet
             
             ### First solve the gdl vapor profile
             Cv_cgc = (Jw_ca * Lgc / Hgc + Cv_in_c * Win_c)/Wout_c
             Cv_agc = (Jw_an * Lgc / Hgc + Cv_in_a * Win_a)/Wout_a
-            Cv_a_inter = Cv_agc + Jw_an/h_conv(Pa_des, Tfc, Wgc, Hgc)
-            Cv_acl = Cv_a_inter + Hgdl/Dc(Pa_des, Tfc) * Jw_an
-            Cv_c_inter = Cv_cgc + Jw_ca/h_conv(Pc_des, Tfc, parameters["Wgc"], parameters["Hgc"])
-            Cv_ccl = Cv_c_inter - Hgdl/Dc(Pc_des, Tfc) * -Jw_ca
+            Cv_a_inter = Cv_agc + Jw_an/h_a(Pa_des, Tfc, Wgc, Hgc)
+            Cv_acl = Cv_a_inter + Hgdl/Da_eff(0,epsilon_gdl,Pa_des, Tfc,epsilon_c,epsilon_gdl) * Jw_an
+            Cv_c_inter = Cv_cgc + Jw_ca/h_c(Pc_des, Tfc, Wgc, Hgc)
+            Cv_ccl = Cv_c_inter - Hgdl/Dc_eff(0,epsilon_gdl,Pc_des, Tfc,epsilon_c,epsilon_gdl) * -Jw_ca
 
             # determine the front position of the saturation in GDL
-            if Cv_ccl > Csat(Tfc) and Cv_cgc < Csat(Tfc):
-                s_front_cgdl = Hgdl - (Csat(Tfc) - Cv_c_inter) * (Dc(Pc_des, Tfc) / -Jw_ca)
-            elif Cv_cgc > Csat(Tfc) and Cv_ccl > Csat(Tfc):
+            if Cv_ccl > C_v_sat(Tfc) and Cv_cgc < C_v_sat(Tfc):
+                s_front_cgdl = Hgdl - (C_v_sat(Tfc) - Cv_c_inter) * (Dc_eff(0,epsilon_gdl,Pc_des, Tfc,epsilon_c,epsilon_gdl) / -Jw_ca)
+            elif Cv_cgc > C_v_sat(Tfc) and Cv_ccl > C_v_sat(Tfc):
                 s_front_cgdl = Hgdl
             else:
                 s_front_cgdl = 0
 
-            if Cv_acl > Csat(Tfc) and Cv_agc < Csat(Tfc):
-                s_front_agdl = (Csat(Tfc) - Cv_a_inter) * (Dc(Pa_des, Tfc) / Jw_an)
-            elif Cv_agc > Csat(Tfc) and Cv_acl > Csat(Tfc):
+            if Cv_acl > C_v_sat(Tfc) and Cv_agc < C_v_sat(Tfc):
+                s_front_agdl = (C_v_sat(Tfc) - Cv_a_inter) * (Da_eff(0,epsilon_gdl,Pa_des, Tfc,epsilon_c,epsilon_gdl) / Jw_an)
+            elif Cv_agc > C_v_sat(Tfc) and Cv_acl > C_v_sat(Tfc):
                 s_front_agdl = 0
             else:
                 s_front_agdl = Hgdl
@@ -133,7 +142,7 @@ class PEMFC_1D:
             i_node = 0
             for x in np.linspace(0, Hgdl, 10):
                 # CGDL saturation profile
-                rhs = (M_H2O * Jw_ca * (s_front_cgdl-x)) / (-sigma(Tfc) * K0(epsilon_gdl, epsilon_c)/nu_l(Tfc)* np.cos(theta_c)*(epsilon_gdl/K0(epsilon_gdl,epsilon_c))**0.5)
+                rhs = (M_H2O * Jw_ca * (s_front_cgdl-x)) / (-sigma(Tfc) * K0(epsilon_gdl, epsilon_c, epsilon_gdl)/nu_l(Tfc)* np.cos(theta_c_gdl)*(epsilon_gdl/K0(epsilon_gdl,epsilon_c,epsilon_gdl))**0.5)
                 def s_cgdl_func(n):
                     return 0.35425 * n ** 4 - 0.848 * n **5 + 0.6315 * n ** 6 - rhs
                 if x < s_front_cgdl:
@@ -142,7 +151,7 @@ class PEMFC_1D:
                     solution = [0]
                 s_cgdl[i_node] = solution[0]
                 # AGDL saturation profile
-                rhs = (M_H2O * Jw_an * (s_front_agdl-x)) / (-sigma(Tfc) * K0(epsilon_gdl, epsilon_c)/nu_l(Tfc)* np.cos(theta_c)*(epsilon_gdl/K0(epsilon_gdl,epsilon_c))**0.5)
+                rhs = (M_H2O * Jw_an * (s_front_agdl-x)) / (-sigma(Tfc) * K0(epsilon_gdl, epsilon_c, epsilon_gdl)/nu_l(Tfc)* np.cos(theta_c_gdl)*(epsilon_gdl/K0(epsilon_gdl,epsilon_c,epsilon_gdl))**0.5)
                 def s_agdl_func(n):
                     return 0.35425 * n ** 4 - 0.848 * n **5 + 0.6315 * n ** 6 - rhs
                 if x > s_front_agdl:
@@ -151,16 +160,16 @@ class PEMFC_1D:
                     solution = [0]
                 s_agdl[i_node] = solution[0]
                 # Vapor concentration profile
-                Cv_cgdl[i_node] = Cv_c_inter + (Hgdl-x)/Dc(Pc_des, Tfc) * Jw_ca
-                Cv_agdl[i_node] = Cv_a_inter + (x)/Dc(Pa_des, Tfc) * Jw_an
+                Cv_cgdl[i_node] = Cv_c_inter + (Hgdl-x)/Dc_eff(0,epsilon_gdl,Pc_des, Tfc,epsilon_c,epsilon_gdl) * Jw_ca
+                Cv_agdl[i_node] = Cv_a_inter + (x)/Da_eff(0,epsilon_gdl,Pa_des, Tfc,epsilon_c,epsilon_gdl) * Jw_an
                 i_node += 1
 
             # Water content
-            if Cv_ccl > Csat(Tfc):
+            if Cv_ccl > C_v_sat(Tfc):
                 lambda_ccl = np.min([14 + 8*s_cgdl[0], 22])
             else:
                 lambda_ccl = np.min([lambda_eq(Cv_ccl, 0, Tfc, 20) + Jw_ca * M_eq / (epsilon_cl * Hcl * 1.3 *rho_mem) , 14])
-            if Cv_acl > Csat(Tfc):
+            if Cv_acl > C_v_sat(Tfc):
                 lambda_acl = np.min([14 + 8*s_agdl[0], 22])
             else:
                 lambda_acl = np.min([lambda_eq(Cv_acl, 0, Tfc, 20) + Jw_an * M_eq / (epsilon_cl * Hcl * 1.3 *rho_mem) , 14])
@@ -169,13 +178,49 @@ class PEMFC_1D:
             lambda_mem = [lambda_ccl * np.exp(x/Klambda) for x in np.linspace( -2e-5, 0, 10)]
 
             Jmem = 2.5/22 * i / F * (lambda_ccl - lambda_acl* np.exp(Hmem/Klambda)) / (np.exp(Hmem/Klambda) - 1)
+        
+        JH2 = -Srxn
+        JO2 = -Srxn/2
+        C_O2_cgdl = np.zeros(10)
+        C_H2_agdl = np.zeros(10)
+        C_H2_agc = Pa_des / (R * Tfc) - Cv_acl
+        C_O2_cgc = (Pc_des / (R * Tfc) - Cv_ccl) * 0.21
+        C_H2_inter = C_H2_agc + JH2/h_a(Pa_des, Tfc, Wgc, Hgc)
+        C_O2_inter = C_O2_cgc + JO2/h_c(Pc_des, Tfc, Wgc, Hgc)
+        i_node = 0
+        for x in np.linspace(0, Hgdl, 10):
+            C_O2_cgdl[i_node] = C_O2_inter + (Hgdl-x)/Dc_eff(s_cgdl[i_node],epsilon_gdl,Pc_des, Tfc,epsilon_c,epsilon_gdl) * JO2
+            C_H2_agdl[i_node] = C_H2_inter + (x)/Da_eff(s_agdl[i_node],epsilon_gdl,Pa_des, Tfc,epsilon_c,epsilon_gdl) * JH2
+            i_node += 1
+
+        C_H2_acl = C_H2_agdl[-1] + Hcl/Da_eff(0,epsilon_cl,Pa_des, Tfc,epsilon_c,epsilon_cl) * JH2
+        C_O2_ccl = C_O2_cgdl[0] + Hcl/Dc_eff(0,epsilon_cl,Pc_des, Tfc,epsilon_c,epsilon_cl) * -JO2
+        
+        Ueq = (E0 - 8.5e-4 * (Tfc - 298.15) + R * Tfc / (2 * F) * (np.log(R * Tfc * C_H2_acl / Pref) + 0.5 * np.log(R * Tfc * C_O2_ccl / Pref)))
+        f_drop = 0.5 * (1.0 - np.tanh((4 * s_cgdl[0] - 2 * slim - 2 * s_switch) / (slim - s_switch)))
+        i0_c = i0_c_ref * np.exp(-Eact / R * (1 / Tfc - 1 / 353))
+        eta_c = (1 / f_drop * R * Tfc / (alpha_c * F) * np.log((i) / i0_c * (C_O2ref / C_O2_ccl) ** kappa_c))
+        Rmem = []
+        for i_mem in range(10):
+            # The proton resistance
+            lambda_mem_i = lambda_mem[i_mem]
+            if lambda_mem_i >= 1:
+                Rmem += [(Hmem/parameters['n_mem']) / ((0.5139 * lambda_mem_i - 0.326) * np.exp(1268 * (1 / 303.15 - 1 / Tfc)))]
+            else:
+                Rmem += [(Hmem/parameters['n_mem']) / (0.1879 * np.exp(1268 * (1 / 303.15 - 1 / Tfc)))]
+        Rohm = sum(Rmem) + parameters["Re"]
+
 
         return {"Jnet": Jnet, "Jmem": Jmem,
                      "lambda_ccl": lambda_ccl, "lambda_acl": lambda_acl,
                      "Cv_ccl": Cv_ccl, "Cv_acl": Cv_acl,
                      "s_front_cgdl": s_front_cgdl, "s_front_agdl": s_front_agdl,
                      "Cv_cgdl": Cv_cgdl, "Cv_agdl": Cv_agdl, "lambda_mem": lambda_mem,
-                     "s_cgdl": s_cgdl, "s_agdl": s_agdl}
+                     "s_cgdl": s_cgdl, "s_agdl": s_agdl,
+                     "C_H2_acl": C_H2_acl, "C_O2_ccl": C_O2_ccl,
+                     "C_H2_agc": C_H2_agc, "C_O2_cgc": C_O2_cgc,
+                     "C_H2_inter": C_H2_inter, "C_O2_inter": C_O2_inter,
+                     "Ueq": Ueq, "eta_c": eta_c, "Rohm": Rohm}
 
 
 

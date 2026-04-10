@@ -10,7 +10,7 @@ from dynamic.control import control_operating_conditions
 import warnings
 warnings.filterwarnings("ignore")
 
-class PEMFC_1D:
+class PEMFC_dyn:
     
     def __init__(self, parameters,   
                            operating_inputs,
@@ -373,7 +373,7 @@ class PEMFC_1D:
         J_H2_acl_mem = 0
 
         for i_node in np.arange(1, n_mem):
-            x_H2O = (x[f"lambda_mem_{i_node+1}"] * R_H20) / (R_iono + x[f"lambda_mem_{i_node+1}"] * R_H20)
+            x_H2O = (x[f"lambda_mem_{i_node+1}"] * R_H2O) / (R_iono + x[f"lambda_mem_{i_node+1}"] * R_H2O)
             k_H2_mem = (0.29 + 2.2 * x_H2O) * 1e-15 * np.exp(2.1e4 / R * (1 / 303 - 1 / x[f"Tmem_{i_node+1}"]))
             k_O2_mem = (0.11 + 1.9 * x_H2O) * 1e-15 * np.exp(2.2e4 / R * (1 / 303 - 1 / x[f"Tmem_{i_node+1}"]))
             D_H2 = 2.584 * np.exp(170 / x[f"Tmem_{i_node+1}"]) * k_O2_mem
@@ -873,7 +873,7 @@ class PEMFC_1D:
         J_H2_acl_mem = 0
 
         for i_node in np.arange(1, n_mem):
-            x_H2O = (x[f"lambda_mem_{i_node+1}"] * R_H20) / (R_iono + x[f"lambda_mem_{i_node+1}"] * R_H20)
+            x_H2O = (x[f"lambda_mem_{i_node+1}"] * R_H2O) / (R_iono + x[f"lambda_mem_{i_node+1}"] * R_H2O)
             k_H2_mem = (0.29 + 2.2 * x_H2O) * 1e-15 * np.exp(2.1e4 / R * (1 / 303 - 1 / x[f"Tmem_{i_node+1}"]))
             k_O2_mem = (0.11 + 1.9 * x_H2O) * 1e-15 * np.exp(2.2e4 / R * (1 / 303 - 1 / x[f"Tmem_{i_node+1}"]))
             D_H2 = 2.584 * np.exp(170 / x[f"Tmem_{i_node+1}"]) * k_O2_mem
