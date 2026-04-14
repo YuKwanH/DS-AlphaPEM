@@ -30,7 +30,7 @@ current_parameters = {'t_step': (0, 3600, 100, 1.5), 'i_step': (0.5e4, 1.5e4),
 
 undetermined_physical_parameters = {'epsilon_gdl': 0.7, "epsilon_cl": 0.15,
                                     'epsilon_mc': 0.399,'epsilon_c': 0.299, 
-                                    'e': 3, 'kappa_co': 37.2, 'Re': 2.2e-7, 'tau': 1.01, 
+                                    'e': 4, 'kappa_co': 37.2, 'Re': 2.2e-7, 'tau': 1.01, 
                                     'i0_c_ref': 10.6, 'kappa_c': 0.1, 'C_scl': 1e8, 
                                     'a_slim': 0.01, 'b_slim': 0.25, 'a_switch': 0.13,
                                     "Hcl": 1e-5, "Hgdl": 2.e-4}

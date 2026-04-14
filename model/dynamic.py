@@ -104,7 +104,7 @@ class PEMFC_dyn:
         Phi_a_des, Phi_c_des = self.operating_inputs['Phi_a_des'], self.operating_inputs["Phi_c_des"]
         Sa, Sc = self.operating_inputs['Sa'], self.operating_inputs["Sc"]
         Tfc = self.operating_inputs["Tfc"]
-        k_purge = 2.5
+
         # Pressures in the stack
         Pagc = (x["C_v_agc"] + x["C_H2_agc"]) * R * Tfc
         Pagdl = [(x[f'C_v_agdl_{i}'] + x[f'C_H2_agdl_{i}']) * R * x[f"Tagdl_{i}"] for i in range(1, n_gdl + 1)]
@@ -112,7 +112,7 @@ class PEMFC_dyn:
         Pccl = (x["C_v_ccl"] + x["C_O2_ccl"] + x["C_N2"]) * R * x['Tccl']
         Pcgdl = [(x[f'C_v_cgdl_{i}'] + x[f'C_O2_cgdl_{i}'] + x["C_N2"]) * R * x[f"Tcgdl_{i}"] for i in range(1, n_gdl + 1)]
         Pcgc = (x["C_v_cgc"] + x["C_O2_cgc"] + x["C_N2"]) * R * Tfc
-        #       Molar masses
+        #  Molar masses
         Phi_agc = x['C_v_agc'] / C_v_sat(Tfc)
         Phi_cgc = x['C_v_cgc'] / C_v_sat(Tfc)
         y_cgc = x['C_O2_cgc'] / (x['C_O2_cgc'] + x['C_N2'])

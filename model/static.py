@@ -16,19 +16,18 @@ class PEMFC_stat:
         Win_a, Wout_a = self.operation_inputs['Win_a'], self.operation_inputs['Wout_a']
         Hcl, Hgdl, Hmem = self.parameters['Hcl'], self.parameters['Hgdl'], self.parameters['Hmem']
         Lgc, Wgc, Hgc = self.parameters['Lgc'], self.parameters['Wgc'], self.parameters['Hgc']
-        epsilon_gdl, epsilon_cl, epsilon_c, epsilon_mc = self.parameters["epsilon_gdl"], self.parameters["epsilon_cl"], self.parameters["epsilon_c"], self.parameters["epsilon_mc"]
+        epsilon_gdl, epsilon_cl, epsilon_c = self.parameters["epsilon_gdl"], self.parameters["epsilon_cl"], self.parameters["epsilon_c"]
 
-        # Implement the solution of the PEMFC model here using the coefficients and parameters
+        # ------------------------------  Boundary conditions ------------------------------ #
         Srxn = i / (2 * F) # mol/s/m^2
-        ### Water inlet
+        # Water inlet
         Cv_in_a = Phi_a_des * C_v_sat(Tfc)
         Cv_in_c = Phi_c_des * C_v_sat(Tfc)
-
-        # ------------------------------ Initial guess------------------------------ #
+        #  Initial guess
         Jnet = 0
         Jw_ca = Srxn
         Jw_an = 0
-        ### First solve the gdl vapor profile
+        # The GDL vapor boundary conditions
         Cv_cgc = (Jw_ca * Lgc / Hgc + Cv_in_c * Win_c)/Wout_c
         Cv_agc = (Jw_an * Lgc / Hgc + Cv_in_a * Win_a)/Wout_a
         Cv_a_inter = Cv_agc + Jw_an/h_a(Pa_des, Tfc, Wgc, Hgc)
@@ -80,6 +79,9 @@ class PEMFC_stat:
             Cv_cgdl[i_node] = Cv_c_inter + (Hgdl-x)/Dc_eff(0,epsilon_gdl,Pc_des, Tfc,epsilon_c,epsilon_gdl) * Jw_ca
             Cv_agdl[i_node] = Cv_a_inter + (x)/Da_eff(0,epsilon_gdl,Pa_des, Tfc,epsilon_c,epsilon_gdl) * Jw_an
             i_node += 1
+
+        Cv_agdl = np.minimum(Cv_agdl, C_v_sat(Tfc))
+        Cv_cgdl = np.minimum(Cv_cgdl, C_v_sat(Tfc))
 
         # Water content
         if Cv_ccl > C_v_sat(Tfc):
@@ -163,6 +165,8 @@ class PEMFC_stat:
                 Cv_cgdl[i_node] = Cv_c_inter + (Hgdl-x)/Dc_eff(0,epsilon_gdl,Pc_des, Tfc,epsilon_c,epsilon_gdl) * Jw_ca
                 Cv_agdl[i_node] = Cv_a_inter + (x)/Da_eff(0,epsilon_gdl,Pa_des, Tfc,epsilon_c,epsilon_gdl) * Jw_an
                 i_node += 1
+            Cv_agdl = np.minimum(Cv_agdl, C_v_sat(Tfc))
+            Cv_cgdl = np.minimum(Cv_cgdl, C_v_sat(Tfc))
 
             # Water content
             if Cv_ccl > C_v_sat(Tfc):
