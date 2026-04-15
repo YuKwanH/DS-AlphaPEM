@@ -205,6 +205,7 @@ class PEMFC_stat:
         i0_c = i0_c_ref * np.exp(-Eact / R * (1 / Tfc - 1 / 353))
         eta_c = (1 / f_drop * R * Tfc / (alpha_c * F) * np.log((i) / i0_c * (C_O2ref / C_O2_ccl) ** kappa_c))
         Rmem = []
+
         for i_mem in range(10):
             # The proton resistance
             lambda_mem_i = lambda_mem[i_mem]
@@ -213,7 +214,6 @@ class PEMFC_stat:
             else:
                 Rmem += [(Hmem/parameters['n_mem']) / (0.1879 * np.exp(1268 * (1 / 303.15 - 1 / Tfc)))]
         Rohm = sum(Rmem) + parameters["Re"]
-
 
         return {"Jnet": Jnet, "Jmem": Jmem,
                      "lambda_ccl": lambda_ccl, "lambda_acl": lambda_acl,
