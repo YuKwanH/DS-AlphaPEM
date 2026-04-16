@@ -23,14 +23,14 @@ class PEMFC_dyn:
         self.control_variables = {'Phi_a_des': self.operating_inputs['Phi_a_des'],
                                                 'Phi_c_des': self.operating_inputs['Phi_c_des']}
         self.solver_variable_names = ['C_H2_agc', 'C_H2_agdl', 'C_H2_acl','C_H2_mem',
-                                                        'C_O2_mem', 'C_O2_ccl', 'C_O2_cgdl', 'C_O2_cgc', 'C_N2',
-                                                        'C_v_agc', 'C_v_agdl', 'C_v_acl', 'C_v_ccl', 'C_v_cgdl', 'C_v_cgc',
-                                                        's_agdl', 's_acl', 's_ccl', 's_cgdl',
-                                                        'lambda_acl', 'lambda_ccl', 'lambda_mem',
-                                                        'eta_c', 'Pasm', 'Paem', 'Pcsm', 'Pcem', 'Phi_asm', 'Phi_aem', 'Phi_csm','Phi_cem',
-                                                        'Wcp', 'Wa_inj', 'Wc_inj', 'Abp_a', 'Abp_c',
-                                                        'C_Pt2_mem', 'C_Pt2_ccl', 'delta_mem', 'S_N_ccl', 'theta_ccl',
-                                                        "Tagdl","Tacl","Tmem","Tccl", "Tcgdl"]
+                                                            'C_O2_mem', 'C_O2_ccl', 'C_O2_cgdl', 'C_O2_cgc', 'C_N2',
+                                                            'C_v_agc', 'C_v_agdl', 'C_v_acl', 'C_v_ccl', 'C_v_cgdl', 'C_v_cgc',
+                                                            's_agdl', 's_acl', 's_ccl', 's_cgdl',
+                                                            'lambda_acl', 'lambda_ccl', 'lambda_mem',
+                                                            'eta_c', 'Pasm', 'Paem', 'Pcsm', 'Pcem', 'Phi_asm', 'Phi_aem', 'Phi_csm','Phi_cem',
+                                                            'Wcp', 'Wa_inj', 'Wc_inj', 'Abp_a', 'Abp_c',
+                                                            'C_Pt2_mem', 'C_Pt2_ccl', 'delta_mem', 'S_N_ccl', 'theta_ccl',
+                                                            "Tagdl","Tacl","Tmem","Tccl", "Tcgdl"]
         self.micro_parameters = {"n_group_ptParticle": 10, "rmin": 1e-8, "rmax": 1e-6, "dr": 1e-6 / 10,
                                                       "R0": 2e-9, "Vm_Pt": 1.45e-5, "krdp": 1e-6, "Cpt2_ref": 1e-3,
                                                       "k1": 1e-6, "k1_ref": 1e-6, "k2": 1e-6, "k2_ref": 1e-6,"kdet_ref": 1e-6, "R0": 2e-9,

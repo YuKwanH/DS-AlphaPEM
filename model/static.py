@@ -216,16 +216,17 @@ class PEMFC_stat:
         Rohm = sum(Rmem) + parameters["Re"]
 
         return {"Jnet": Jnet, "Jmem": Jmem,
-                     "lambda_ccl": lambda_ccl, "lambda_acl": lambda_acl,
-                     "Cv_ccl": Cv_ccl, "Cv_acl": Cv_acl,
-                     "s_front_cgdl": s_front_cgdl, "s_front_agdl": s_front_agdl,
-                     "Cv_cgdl": Cv_cgdl, "Cv_agdl": Cv_agdl, "lambda_mem": lambda_mem,
-                     "s_cgdl": s_cgdl, "s_agdl": s_agdl,
+                     "lambda_ccl": lambda_ccl, "lambda_acl": lambda_acl,"lambda_mem": lambda_mem,
+                     "C_v_ccl": Cv_ccl, "C_v_acl": Cv_acl,"C_v_cgdl": Cv_cgdl, "C_v_agdl": Cv_agdl, 
+                     "C_v_a_inter": Cv_a_inter, "C_v_c_inter": Cv_c_inter, "C_v_cgc": Cv_cgc, "C_v_agc": Cv_agc,
+                     "s_front_cgdl": s_front_cgdl, "s_front_agdl": s_front_agdl,"s_cgdl": s_cgdl, "s_agdl": s_agdl,
                      "C_H2_acl": C_H2_acl, "C_O2_ccl": C_O2_ccl,
                      "C_H2_agc": C_H2_agc, "C_O2_cgc": C_O2_cgc,
                      "C_H2_inter": C_H2_inter, "C_O2_inter": C_O2_inter,
                      "Ueq": Ueq, "eta_c": eta_c, "Rohm": Rohm,
-                     "Jw_ca":Jw_ca, "Jw_an": Jw_an, "JH2": JH2, "JO2": JO2}
+                     "Jw_ca":Jw_ca, "Jw_an": Jw_an, "JH2": JH2, "JO2": JO2,
+                     "Jv_a_in": Win_a * Cv_in_a, "Jv_a_out": Wout_a * Cv_agc,
+                     "Jv_c_in": Win_c * Cv_in_c, "Jv_c_out": Wout_c * Cv_cgc,}
 
 
 
