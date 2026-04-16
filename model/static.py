@@ -225,8 +225,8 @@ class PEMFC_stat:
                      "C_H2_inter": C_H2_inter, "C_O2_inter": C_O2_inter,
                      "Ueq": Ueq, "eta_c": eta_c, "Rohm": Rohm,
                      "Jw_ca":Jw_ca, "Jw_an": Jw_an, "JH2": JH2, "JO2": JO2,
-                     "Jv_a_in": Win_a * Cv_in_a, "Jv_a_out": Wout_a * Cv_agc,
-                     "Jv_c_in": Win_c * Cv_in_c, "Jv_c_out": Wout_c * Cv_cgc,}
+                     "Jv_a_in": Win_a * Cv_in_a/Lgc, "Jv_a_out": Wout_a * Cv_agc/Lgc,
+                     "Jv_c_in": Win_c * Cv_in_c/Lgc, "Jv_c_out": Wout_c * Cv_cgc/Lgc,}
 
 
 
