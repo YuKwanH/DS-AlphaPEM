@@ -618,7 +618,7 @@ class PEMFC_dyn:
         self.variables["Ucell"].extend(calculate_cell_voltage(1, self.variables, self.operating_inputs,self.parameters))
         
 
-    def calculate_flows(self, t, sv):
+    def calculate_flows(self,t, sv):
 
         # Mapping macro-scale variables
         x = sv
@@ -933,17 +933,19 @@ class PEMFC_dyn:
         Wc_inj_des = Wc_v_des - Wv_hum_in  # Desired humidifier flow rate
 
         return {'Jv_a_in': Jv_a_in, 'Jv_a_out': Jv_a_out, 'Jv_c_in': Jv_c_in, 'Jv_c_out': Jv_c_out, 'J_H2_in': J_H2_in,
-                    'J_H2_out': J_H2_out, 'J_O2_in': J_O2_in, 'J_O2_out': J_O2_out, 'J_N2_in': J_N2_in, 'J_N2_out': J_N2_out,
-                    'Jv_agc_agdl': Jv_agc_agdl, 'Jv_agdl_agdl': Jv_agdl_agdl, 'Jv_agdl_acl': Jv_agdl_acl,
-                    'S_sorp_acl': S_sorp_acl, 'S_sorp_ccl': S_sorp_ccl, 'Jv_ccl_cgdl': Jv_ccl_cgdl,
-                    'Jv_cgdl_cgdl': Jv_cgdl_cgdl, 'Jv_cgdl_cgc': Jv_cgdl_cgc, 'Jl_agdl_agdl': Jl_agdl_agdl,
-                    'Jl_agdl_acl': Jl_agdl_acl, 'J_lambda_mem_acl': J_lambda_mem_acl, 'J_lambda_mem_ccl': J_lambda_mem_ccl,
-                    'Jl_ccl_cgdl': Jl_ccl_cgdl, 'Jl_cgdl_cgdl': Jl_cgdl_cgdl, 'Sp_acl': Sp_acl, 'Sp_ccl': Sp_ccl,
-                    'J_H2_agc_agdl': J_H2_agc_agdl, 'J_H2_agdl_agdl': J_H2_agdl_agdl, 'J_H2_agdl_acl': J_H2_agdl_acl,
-                    'J_O2_ccl_cgdl': J_O2_ccl_cgdl, 'J_O2_cgdl_cgdl': J_O2_cgdl_cgdl, 'J_O2_cgdl_cgc': J_O2_cgdl_cgc,
-                    'S_H2_acl': S_H2_acl, 'S_O2_ccl': S_O2_ccl, 'Sv_agdl': Sv_agdl, 'Sv_acl': Sv_acl, 'Sv_ccl': Sv_ccl,
-                    'Sv_cgdl': Sv_cgdl, 'Sl_agdl': Sl_agdl, 'Sl_acl': Sl_acl, 'Sl_ccl': Sl_ccl, 'Sl_cgdl': Sl_cgdl,
-                    'Pagc': Pagc, 'Pcgc': Pcgc, 'Wasm_in': Wasm_in, 'Wasm_out': Wasm_out, 'Waem_in': Waem_in,
-                    'Waem_out': Waem_out, 'Wcsm_in': Wcsm_in, 'Wcsm_out': Wcsm_out, 'Wcem_in': Wcem_in, 'Wcem_out': Wcem_out,
-                    'Ware': Ware, 'Wv_asm_in': Wv_asm_in, 'Wv_aem_out': Wv_aem_out, 'Wv_csm_in': Wv_csm_in,
-                    'Wv_cem_out': Wv_cem_out}
+                     'J_H2_out': J_H2_out, 'J_O2_in': J_O2_in, 'J_O2_out': J_O2_out, 'J_N2_in': J_N2_in, 'J_N2_out': J_N2_out,
+                     'Jv_agc_agdl': Jv_agc_agdl, 'Jv_agdl_agdl': Jv_agdl_agdl, 'Jv_agdl_acl': Jv_agdl_acl,
+                     'Jv_cgdl_cgc': Jv_cgdl_cgc, 'Jv_cgdl_cgdl': Jv_cgdl_cgdl, 'Jv_ccl_cgdl': Jv_ccl_cgdl, 
+                     'Jl_agdl_acl': Jl_agdl_acl, 'Jl_agdl_agdl': Jl_agdl_agdl, 'Jl_agdl_agc': Jl_agdl_agc,
+                     'Jl_ccl_cgdl': Jl_ccl_cgdl, 'Jl_cgdl_cgdl': Jl_cgdl_cgdl, 'Jl_cgdl_cgc': Jl_cgdl_cgc,
+                     'J_lambda_mem_acl': J_lambda_mem_acl, 'J_lambda_mem_ccl': J_lambda_mem_ccl, 'J_lambda_mem': J_lambda_mem,
+                     'J_H2_agc_agdl': J_H2_agc_agdl, 'J_H2_agdl_agdl': J_H2_agdl_agdl, 'J_H2_agdl_acl': J_H2_agdl_acl,
+                     'J_O2_ccl_cgdl': J_O2_ccl_cgdl, 'J_O2_cgdl_cgdl': J_O2_cgdl_cgdl, 'J_O2_cgdl_cgc': J_O2_cgdl_cgc,
+                     'S_sorp_acl': S_sorp_acl, 'S_sorp_ccl': S_sorp_ccl, 'Sp_acl': Sp_acl, 'Sp_ccl': Sp_ccl,
+                     'S_H2_acl': S_H2_acl, 'S_O2_ccl': S_O2_ccl, 
+                     'Sv_cgdl': Sv_cgdl, 'Sv_agdl': Sv_agdl, 'Sv_acl': Sv_acl, 'Sv_ccl': Sv_ccl,
+                     'Sl_agdl': Sl_agdl, 'Sl_acl': Sl_acl, 'Sl_ccl': Sl_ccl, 'Sl_cgdl': Sl_cgdl,
+                     'Pagc': Pagc, 'Pcgc': Pcgc, 'Wasm_in': Wasm_in, 'Wasm_out': Wasm_out, 'Waem_in': Waem_in,
+                     'Waem_out': Waem_out, 'Wcsm_in': Wcsm_in, 'Wcsm_out': Wcsm_out, 'Wcem_in': Wcem_in, 'Wcem_out': Wcem_out,
+                     'Ware': Ware, 'Wv_asm_in': Wv_asm_in, 'Wv_aem_out': Wv_aem_out, 'Wv_csm_in': Wv_csm_in,
+                     'Wv_cem_out': Wv_cem_out}

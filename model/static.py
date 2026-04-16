@@ -117,20 +117,20 @@ class PEMFC_stat:
             Cv_cgc = (Jw_ca * Lgc / Hgc + Cv_in_c * Win_c)/Wout_c
             Cv_agc = (Jw_an * Lgc / Hgc + Cv_in_a * Win_a)/Wout_a
             Cv_a_inter = Cv_agc + Jw_an/h_a(Pa_des, Tfc, Wgc, Hgc)
-            Cv_acl = Cv_a_inter + Hgdl/Da_eff(0,epsilon_gdl,Pa_des, Tfc,epsilon_c,epsilon_gdl) * Jw_an
+            Cv_acl = Cv_a_inter + Hgdl/Da_eff(np.mean(s_agdl),epsilon_gdl,Pa_des, Tfc,epsilon_c,epsilon_gdl) * Jw_an
             Cv_c_inter = Cv_cgc + Jw_ca/h_c(Pc_des, Tfc, Wgc, Hgc)
-            Cv_ccl = Cv_c_inter - Hgdl/Dc_eff(0,epsilon_gdl,Pc_des, Tfc,epsilon_c,epsilon_gdl) * -Jw_ca
+            Cv_ccl = Cv_c_inter - Hgdl/Dc_eff(np.mean(s_cgdl),epsilon_gdl,Pc_des, Tfc,epsilon_c,epsilon_gdl) * -Jw_ca
 
             # determine the front position of the saturation in GDL
             if Cv_ccl > C_v_sat(Tfc) and Cv_cgc < C_v_sat(Tfc):
-                s_front_cgdl = Hgdl - (C_v_sat(Tfc) - Cv_c_inter) * (Dc_eff(0,epsilon_gdl,Pc_des, Tfc,epsilon_c,epsilon_gdl) / -Jw_ca)
+                s_front_cgdl = Hgdl - (C_v_sat(Tfc) - Cv_c_inter) * (Dc_eff(np.mean(s_cgdl),epsilon_gdl,Pc_des, Tfc,epsilon_c,epsilon_gdl) / -Jw_ca)
             elif Cv_cgc > C_v_sat(Tfc) and Cv_ccl > C_v_sat(Tfc):
                 s_front_cgdl = Hgdl
             else:
                 s_front_cgdl = 0
 
             if Cv_acl > C_v_sat(Tfc) and Cv_agc < C_v_sat(Tfc):
-                s_front_agdl = (C_v_sat(Tfc) - Cv_a_inter) * (Da_eff(0,epsilon_gdl,Pa_des, Tfc,epsilon_c,epsilon_gdl) / Jw_an)
+                s_front_agdl = (C_v_sat(Tfc) - Cv_a_inter) * (Da_eff(np.mean(s_agdl),epsilon_gdl,Pa_des, Tfc,epsilon_c,epsilon_gdl) / Jw_an)
             elif Cv_agc > C_v_sat(Tfc) and Cv_acl > C_v_sat(Tfc):
                 s_front_agdl = 0
             else:
@@ -162,8 +162,8 @@ class PEMFC_stat:
                     solution = [0]
                 s_agdl[i_node] = solution[0]
                 # Vapor concentration profile
-                Cv_cgdl[i_node] = Cv_c_inter + (Hgdl-x)/Dc_eff(0,epsilon_gdl,Pc_des, Tfc,epsilon_c,epsilon_gdl) * Jw_ca
-                Cv_agdl[i_node] = Cv_a_inter + (x)/Da_eff(0,epsilon_gdl,Pa_des, Tfc,epsilon_c,epsilon_gdl) * Jw_an
+                Cv_cgdl[i_node] = Cv_c_inter + (Hgdl-x)/Dc_eff(np.mean(s_cgdl),epsilon_gdl,Pc_des, Tfc,epsilon_c,epsilon_gdl) * Jw_ca
+                Cv_agdl[i_node] = Cv_a_inter + (x)/Da_eff(np.mean(s_agdl),epsilon_gdl,Pa_des, Tfc,epsilon_c,epsilon_gdl) * Jw_an
                 i_node += 1
             Cv_agdl = np.minimum(Cv_agdl, C_v_sat(Tfc))
             Cv_cgdl = np.minimum(Cv_cgdl, C_v_sat(Tfc))
@@ -197,8 +197,8 @@ class PEMFC_stat:
             C_H2_agdl[i_node] = C_H2_inter + (x)/Da_eff(s_agdl[i_node],epsilon_gdl,Pa_des, Tfc,epsilon_c,epsilon_gdl) * JH2
             i_node += 1
 
-        C_H2_acl = C_H2_agdl[-1] + Hcl/Da_eff(0,epsilon_cl,Pa_des, Tfc,epsilon_c,epsilon_cl) * JH2
-        C_O2_ccl = C_O2_cgdl[0] + Hcl/Dc_eff(0,epsilon_cl,Pc_des, Tfc,epsilon_c,epsilon_cl) * -JO2
+        C_H2_acl = C_H2_agdl[-1] + Hcl/Da_eff(np.mean(s_agdl),epsilon_cl,Pa_des, Tfc,epsilon_c,epsilon_cl) * JH2
+        C_O2_ccl = C_O2_cgdl[0] + Hcl/Dc_eff(np.mean(s_cgdl),epsilon_cl,Pc_des, Tfc,epsilon_c,epsilon_cl) * -JO2
         
         Ueq = (E0 - 8.5e-4 * (Tfc - 298.15) + R * Tfc / (2 * F) * (np.log(R * Tfc * C_H2_acl / Pref) + 0.5 * np.log(R * Tfc * C_O2_ccl / Pref)))
         f_drop = 0.5 * (1.0 - np.tanh((4 * s_cgdl[0] - 2 * slim - 2 * s_switch) / (slim - s_switch)))
@@ -224,7 +224,8 @@ class PEMFC_stat:
                      "C_H2_acl": C_H2_acl, "C_O2_ccl": C_O2_ccl,
                      "C_H2_agc": C_H2_agc, "C_O2_cgc": C_O2_cgc,
                      "C_H2_inter": C_H2_inter, "C_O2_inter": C_O2_inter,
-                     "Ueq": Ueq, "eta_c": eta_c, "Rohm": Rohm}
+                     "Ueq": Ueq, "eta_c": eta_c, "Rohm": Rohm,
+                     "Jw_ca":Jw_ca, "Jw_an": Jw_an, "JH2": JH2, "JO2": JO2}
 
 
 
