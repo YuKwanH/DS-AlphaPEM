@@ -1,4 +1,5 @@
 import numpy as np
+import re
 
 # Stack parameters
 parameters = {'Aact': 30e-4, 'Hmem': 2.5e-5, 'Hgc': 8e-4, 'Wgc': 4e-4, 'Lgc': 1.287,
@@ -14,9 +15,6 @@ theta_c = 120 * np.pi / 180
 rho_mem = 1980  # kg.m-3. It is the density of the dry membrane.
 rho_cl = 3.87e2 # kg.m-3. It is the density of the catalyst layer.
 rho_gdl = 2e3  # kg.m-3. It is the density of the gas diffusion layer.
-<<<<<<< Updated upstream
-M_eq = 2.1  # kg.mol-1. It is the equivalent molar mass of ionomer.
-=======
 M_eq = 2.1  # kg.mol-1. It is the equivalent molar mass of ionomer.
 theta_c_gdl = 120 * np.pi / 180  # radian. It is the contact angle of GDL for liquid water.
 theta_c_cl = 95 * np.pi / 180  # radian. It is the contact angle of CL for liquid water.
@@ -87,4 +85,3 @@ def plot_condition(axis, x_values, y_values, label, linewidth=1.8, markersize=5)
         humidity_parts.append(f"RH{side}{value:.1f}")
     humidity = "_".join(humidity_parts) if humidity_parts else None
     axis.plot(x_values, y_values, color=temp_colors.get(temperature, "0.35"), linestyle=pressure_styles.get(pressure, "-"), marker=humidity_markers.get(humidity, "o"), linewidth=linewidth, markersize=markersize)
->>>>>>> Stashed changes
