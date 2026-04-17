@@ -1,205 +1,92 @@
 from configuration.initialize import *
 from configuration.settings import *
 from model.coefficients import *
-from scipy.optimize import fsolve
+from scipy.optimize import fsolve, brentq
 
 class PEMFC_stat:
-    def __init__(self, parameters, operation_inputs):
+    def __init__(self, parameters, operating_inputs):
         self.parameters = parameters
-        self.operation_inputs = operation_inputs
+        self.operating_inputs = operating_inputs
     
     def solve(self, i):
 
-        Phi_a_des, Phi_c_des, Tfc = self.operation_inputs['Phi_a_des'], self.operation_inputs['Phi_c_des'], self.operation_inputs['Tfc']
-        Pa_des, Pc_des = self.operation_inputs['Pa_des'], self.operation_inputs['Pc_des']
-        Win_c, Wout_c = self.operation_inputs['Win_c'], self.operation_inputs['Wout_c']
-        Win_a, Wout_a = self.operation_inputs['Win_a'], self.operation_inputs['Wout_a']
-        Hcl, Hgdl, Hmem = self.parameters['Hcl'], self.parameters['Hgdl'], self.parameters['Hmem']
-        Lgc, Wgc, Hgc = self.parameters['Lgc'], self.parameters['Wgc'], self.parameters['Hgc']
-        epsilon_gdl, epsilon_cl, epsilon_c = self.parameters["epsilon_gdl"], self.parameters["epsilon_cl"], self.parameters["epsilon_c"]
-
-        # ------------------------------  Boundary conditions ------------------------------ #
-        Srxn = i / (2 * F) # mol/s/m^2
-        # Water inlet
-        Cv_in_a = Phi_a_des * C_v_sat(Tfc)
-        Cv_in_c = Phi_c_des * C_v_sat(Tfc)
-        #  Initial guess
-        Jnet = 0
-        Jw_ca = Srxn
+        Tfc = self.operating_inputs['Tfc']
+        Win_c, Wout_c = self.operating_inputs['Win_c'], self.operating_inputs['Wout_c'] 
+        Win_a, Wout_a = self.operating_inputs['Win_a'], self.operating_inputs['Wout_a']
+        Phi_a_des, Phi_c_des = self.operating_inputs['Phi_a_des'], self.operating_inputs['Phi_c_des']
+        Hcl, Hmem, Wgc, Hgc, Lgc = self.parameters['Hcl'], self.parameters['Hmem'], self.parameters['Wgc'], self.parameters['Hgc'], self.parameters['Lgc']
+        epsilon_c, epsilon_cl, epsilon_gdl = self.parameters['epsilon_c'], self.parameters['epsilon_cl'], self.parameters['epsilon_gdl']
+    
+        # ------------------------------ Initial guess------------------------------ #
+        Jnet = 0 
+        Jw_ca = i / (2 * F) 
         Jw_an = 0
-        # The GDL vapor boundary conditions
-        Cv_cgc = (Jw_ca * Lgc / Hgc + Cv_in_c * Win_c)/Wout_c
-        Cv_agc = (Jw_an * Lgc / Hgc + Cv_in_a * Win_a)/Wout_a
-        Cv_a_inter = Cv_agc + Jw_an/h_a(Pa_des, Tfc, Wgc, Hgc)
-        Cv_acl = Cv_a_inter + Hgdl/Da_eff(0,epsilon_gdl,Pa_des, Tfc,epsilon_c,epsilon_gdl) * Jw_an
-        Cv_c_inter = Cv_cgc + Jw_ca/h_c(Pa_des, Tfc, Wgc, Hgc)
-        Cv_ccl = Cv_c_inter - Hgdl/Dc_eff(0,epsilon_gdl,Pc_des, Tfc,epsilon_c,epsilon_gdl) * -Jw_ca
-
-        # determine the front position of the saturation in GDL
-        if Cv_ccl > C_v_sat(Tfc) and Cv_cgc < C_v_sat(Tfc):
-            s_front_cgdl = Hgdl - (C_v_sat(Tfc) - Cv_c_inter) * (Dc_eff(0,epsilon_gdl,Pc_des, Tfc,epsilon_c,epsilon_gdl) / -Jw_ca)
-        elif Cv_cgc > C_v_sat(Tfc) and Cv_ccl > C_v_sat(Tfc):
-            s_front_cgdl = Hgdl
-        else:
-            s_front_cgdl = 0
-
-        if Cv_acl > C_v_sat(Tfc) and Cv_agc < C_v_sat(Tfc):
-            s_front_agdl = (C_v_sat(Tfc) - Cv_a_inter) * (Da_eff(0,epsilon_gdl,Pa_des, Tfc,epsilon_c,epsilon_gdl) / Jw_an)
-        elif Cv_agc > C_v_sat(Tfc) and Cv_acl > C_v_sat(Tfc):
-            s_front_agdl = 0
-        else:
-            s_front_agdl = Hgdl
-
-        # GDL profile
-        s_cgdl = np.zeros(10)
-        s_agdl = np.zeros(10)
-        Cv_cgdl = np.zeros(10)
-        Cv_agdl = np.zeros(10)
-        i_node = 0
-        for x in np.linspace(0, Hgdl, 10):
-            # CGDL saturation profile
-            rhs = (M_H2O * Jw_ca * (s_front_cgdl-x)) / (-sigma(Tfc) * K0(epsilon_gdl, epsilon_c, epsilon_gdl)/nu_l(Tfc)* np.cos(theta_c_gdl)*(epsilon_gdl/K0(epsilon_gdl,epsilon_c,epsilon_gdl))**0.5)
-            def s_cgdl_func(n):
-                return 0.35425 * n ** 4 - 0.848 * n **5 + 0.6315 * n ** 6 - rhs
-            if x < s_front_cgdl:
-                solution = fsolve(s_cgdl_func, x0=s_front_cgdl)
-            else:
-                solution = [0]
-            s_cgdl[i_node] = solution[0]
-            # AGDL saturation profile
-            rhs = (M_H2O * Jw_an * (s_front_agdl-x)) / (-sigma(Tfc) * K0(epsilon_gdl, epsilon_c, epsilon_gdl)/nu_l(Tfc)* np.cos(theta_c_gdl)*(epsilon_gdl/K0(epsilon_gdl,epsilon_c,epsilon_gdl))**0.5)
-            def s_agdl_func(n):
-                return 0.35425 * n ** 4 - 0.848 * n **5 + 0.6315 * n ** 6 - rhs
-            if x > s_front_agdl:
-                solution = fsolve(s_agdl_func, x0=s_front_agdl)
-            else:
-                solution = [0]
-            s_agdl[i_node] = solution[0]
-            # Vapor concentration profile
-            Cv_cgdl[i_node] = Cv_c_inter + (Hgdl-x)/Dc_eff(0,epsilon_gdl,Pc_des, Tfc,epsilon_c,epsilon_gdl) * Jw_ca
-            Cv_agdl[i_node] = Cv_a_inter + (x)/Da_eff(0,epsilon_gdl,Pa_des, Tfc,epsilon_c,epsilon_gdl) * Jw_an
-            i_node += 1
-
-        Cv_agdl = np.minimum(Cv_agdl, C_v_sat(Tfc))
-        Cv_cgdl = np.minimum(Cv_cgdl, C_v_sat(Tfc))
-
+        C_v_cgdl, C_v_ccl, C_v_cinter, C_v_cgc, s_cgdl, x_front_c = self.gdl_profile(Jw_ca, Win_c, Wout_c, Phi_c_des, Pc_des)
+        C_v_agdl, C_v_acl, C_v_ainter, C_v_agc, s_agdl, x_front_a = self.gdl_profile(Jw_an, Win_a, Wout_a, Phi_a_des, Pa_des)
         # Water content
-        if Cv_ccl > C_v_sat(Tfc):
-            lambda_ccl = np.min([14 + 8*s_cgdl[0], 22])
+        if Jw_ca > 0:
+            if C_v_ccl > C_v_sat(Tfc):
+                lambda_ccl = np.min([14 + 8*s_cgdl[0]/0.3, 22])
+            else:
+                lambda_ccl = np.min([lambda_eq(C_v_ccl, s_cgdl[0], Tfc, 20) + Jw_ca * M_eq / (epsilon_cl * Hcl * 1.3 *rho_mem) , 14])
         else:
-            lambda_ccl = np.min([lambda_eq(Cv_ccl, 0, Tfc, 20) + Jw_ca * M_eq / (epsilon_cl * Hcl * 1.3 *rho_mem) , 14])
-        if Cv_acl > C_v_sat(Tfc):
-            lambda_acl = np.min([14 + 8*s_agdl[0], 22])
-        else:
-            lambda_acl = np.min([lambda_eq(Cv_acl, 0, Tfc, 20) + Jw_an * M_eq / (epsilon_cl * Hcl * 1.3 *rho_mem) , 14])
+            lambda_ccl = lambda_eq(C_v_ccl, s_cgdl[0], Tfc, 20) + Jw_ca * M_eq / (epsilon_cl * Hcl * 1.3 *rho_mem) 
 
-        Klambda = rho_mem/M_eq * Dw(lambda_ccl, 333.15) / (2.5/22 * i / F)
-        lambda_mem = [lambda_ccl * np.exp(x/Klambda) for x in np.linspace( -2e-5, 0, 10)]
-
-        Jmem = 2.5/22 * i / F * (lambda_ccl - lambda_acl* np.exp(parameters["Hmem"]/Klambda)) / (np.exp(parameters["Hmem"]/Klambda) - 1)
+        Klambda = rho_mem/M_eq * Dw(lambda_ccl, Tfc) / (2.5/22 * i / F)
+        lambda_acl = lambda_ccl * np.exp(-Hmem/Klambda)
+        lambda_mem = [lambda_ccl * np.exp(-x/Klambda) for x in np.linspace(0, Hmem, 10)]
+        # ------------------------------ Solution iteration ------------------------------ #
         n_iter = 0
-        Ksearch = 0.01
-        # ------------------------------ Solution ------------------------------ #
-        while abs(Jnet - Jmem) > 1e-5:
-
-            n_iter += 1
-            if n_iter == 1000:
-                Ksearch *= 0.5
-            if n_iter ==3000:
-                Ksearch *= 0.5
-            if n_iter > 5000:
-                break
-            Jnet += Ksearch * (Jmem - Jnet)
+        success = False
+        while success == False:
             Jw_ca = i / (2 * F) - Jnet
             Jw_an = Jnet
-            
-            ### First solve the gdl vapor profile
-            Cv_cgc = (Jw_ca * Lgc / Hgc + Cv_in_c * Win_c)/Wout_c
-            Cv_agc = (Jw_an * Lgc / Hgc + Cv_in_a * Win_a)/Wout_a
-            Cv_a_inter = Cv_agc + Jw_an/h_a(Pa_des, Tfc, Wgc, Hgc)
-            Cv_acl = Cv_a_inter + Hgdl/Da_eff(np.mean(s_agdl),epsilon_gdl,Pa_des, Tfc,epsilon_c,epsilon_gdl) * Jw_an
-            Cv_c_inter = Cv_cgc + Jw_ca/h_c(Pc_des, Tfc, Wgc, Hgc)
-            Cv_ccl = Cv_c_inter - Hgdl/Dc_eff(np.mean(s_cgdl),epsilon_gdl,Pc_des, Tfc,epsilon_c,epsilon_gdl) * -Jw_ca
-
-            # determine the front position of the saturation in GDL
-            if Cv_ccl > C_v_sat(Tfc) and Cv_cgc < C_v_sat(Tfc):
-                s_front_cgdl = Hgdl - (C_v_sat(Tfc) - Cv_c_inter) * (Dc_eff(np.mean(s_cgdl),epsilon_gdl,Pc_des, Tfc,epsilon_c,epsilon_gdl) / -Jw_ca)
-            elif Cv_cgc > C_v_sat(Tfc) and Cv_ccl > C_v_sat(Tfc):
-                s_front_cgdl = Hgdl
-            else:
-                s_front_cgdl = 0
-
-            if Cv_acl > C_v_sat(Tfc) and Cv_agc < C_v_sat(Tfc):
-                s_front_agdl = (C_v_sat(Tfc) - Cv_a_inter) * (Da_eff(np.mean(s_agdl),epsilon_gdl,Pa_des, Tfc,epsilon_c,epsilon_gdl) / Jw_an)
-            elif Cv_agc > C_v_sat(Tfc) and Cv_acl > C_v_sat(Tfc):
-                s_front_agdl = 0
-            else:
-                s_front_agdl = Hgdl
-
-            # GDL profile
-            s_cgdl = np.zeros(10)
-            s_agdl = np.zeros(10)
-            Cv_cgdl = np.zeros(10)
-            Cv_agdl = np.zeros(10)
-            i_node = 0
-            for x in np.linspace(0, Hgdl, 10):
-                # CGDL saturation profile
-                rhs = (M_H2O * Jw_ca * (s_front_cgdl-x)) / (-sigma(Tfc) * K0(epsilon_gdl, epsilon_c, epsilon_gdl)/nu_l(Tfc)* np.cos(theta_c_gdl)*(epsilon_gdl/K0(epsilon_gdl,epsilon_c,epsilon_gdl))**0.5)
-                def s_cgdl_func(n):
-                    return 0.35425 * n ** 4 - 0.848 * n **5 + 0.6315 * n ** 6 - rhs
-                if x < s_front_cgdl:
-                    solution = fsolve(s_cgdl_func, x0=s_front_cgdl)
-                else:
-                    solution = [0]
-                s_cgdl[i_node] = solution[0]
-                # AGDL saturation profile
-                rhs = (M_H2O * Jw_an * (s_front_agdl-x)) / (-sigma(Tfc) * K0(epsilon_gdl, epsilon_c, epsilon_gdl)/nu_l(Tfc)* np.cos(theta_c_gdl)*(epsilon_gdl/K0(epsilon_gdl,epsilon_c,epsilon_gdl))**0.5)
-                def s_agdl_func(n):
-                    return 0.35425 * n ** 4 - 0.848 * n **5 + 0.6315 * n ** 6 - rhs
-                if x > s_front_agdl:
-                    solution = fsolve(s_agdl_func, x0=s_front_agdl)
-                else:
-                    solution = [0]
-                s_agdl[i_node] = solution[0]
-                # Vapor concentration profile
-                Cv_cgdl[i_node] = Cv_c_inter + (Hgdl-x)/Dc_eff(np.mean(s_cgdl),epsilon_gdl,Pc_des, Tfc,epsilon_c,epsilon_gdl) * Jw_ca
-                Cv_agdl[i_node] = Cv_a_inter + (x)/Da_eff(np.mean(s_agdl),epsilon_gdl,Pa_des, Tfc,epsilon_c,epsilon_gdl) * Jw_an
-                i_node += 1
-            Cv_agdl = np.minimum(Cv_agdl, C_v_sat(Tfc))
-            Cv_cgdl = np.minimum(Cv_cgdl, C_v_sat(Tfc))
-
+            C_v_cgdl, C_v_ccl, C_v_cinter, C_v_cgc, s_cgdl, x_front_c = self.gdl_profile(Jw_ca, Win_c, Wout_c, Phi_c_des, Pc_des)
+            C_v_agdl, C_v_acl, C_v_ainter, C_v_agc, s_agdl, x_front_a = self.gdl_profile(Jw_an, Win_a, Wout_a, Phi_a_des, Pa_des)
             # Water content
-            if Cv_ccl > C_v_sat(Tfc):
-                lambda_ccl = np.min([14 + 8*s_cgdl[0], 22])
+            if C_v_ccl > C_v_sat(Tfc):
+                lambda_ccl = np.min([14 + 8*s_cgdl[0]/0.3, 22])
             else:
-                lambda_ccl = np.min([lambda_eq(Cv_ccl, 0, Tfc, 20) + Jw_ca * M_eq / (epsilon_cl * Hcl * 1.3 *rho_mem) , 14])
-            if Cv_acl > C_v_sat(Tfc):
-                lambda_acl = np.min([14 + 8*s_agdl[0], 22])
+                lambda_ccl = np.min([lambda_eq(C_v_ccl, s_cgdl[0], Tfc, 20) + Jw_ca * M_eq / (epsilon_cl * Hcl * 1.3 *rho_mem) , 14])
+            if C_v_acl > C_v_sat(Tfc):
+                lambda_acl = np.min([14 + 8*s_agdl[0]/0.3, 22])
             else:
-                lambda_acl = np.min([lambda_eq(Cv_acl, 0, Tfc, 20) + Jw_an * M_eq / (epsilon_cl * Hcl * 1.3 *rho_mem) , 14])
+                lambda_acl = np.min([lambda_eq(C_v_acl, s_agdl[0], Tfc, 20) + Jw_an * M_eq / (epsilon_cl * Hcl * 1.3 *rho_mem) , 14])
 
-            Klambda = rho_mem/M_eq * Dw(lambda_ccl, 333.15) / (2.5/22 * i / F)
-            lambda_mem = [lambda_ccl * np.exp(x/Klambda) for x in np.linspace( -2e-5, 0, 10)]
+            Klambda = rho_mem/M_eq * Dw(lambda_ccl, Tfc) / (2.5/22 * i / F)
+            lambda_mem = [(1-np.exp(-x/Klambda))/(1-np.exp(-Hmem/Klambda)) *
+                                        (lambda_acl - lambda_ccl* np.exp(-Hmem/Klambda))  +
+                                        lambda_ccl * np.exp(-x/Klambda) for x in np.linspace(0, Hmem, 10)]
 
-            Jmem = 2.5/22 * i / F * (lambda_ccl - lambda_acl* np.exp(Hmem/Klambda)) / (np.exp(Hmem/Klambda) - 1)
-        
-        JH2 = -Srxn
-        JO2 = -Srxn/2
+            Jmem = -2.5/22 * i / F * (lambda_ccl* np.exp(-Hmem/Klambda) - lambda_acl) / (np.exp(-Hmem/Klambda) - 1)
+
+            if abs(Jnet - Jmem) <= 1e-4:
+                success = True
+            else:
+                Jnet += 0.01 * (Jmem - Jnet)
+                n_iter += 1
+            
+            if n_iter > 1000:
+                print("Warning: Solution did not converge after 1000 iterations.")
+                break
+
+        JH2 = -i / (2 * F)
+        JO2 = -i / (4 * F)
         C_O2_cgdl = np.zeros(10)
         C_H2_agdl = np.zeros(10)
-        C_H2_agc = Pa_des / (R * Tfc) - Cv_acl
-        C_O2_cgc = (Pc_des / (R * Tfc) - Cv_ccl) * 0.21
+        C_H2_agc = Pa_des / (R * Tfc) - C_v_agc
+        C_O2_cgc = (Pc_des / (R * Tfc) - C_v_cgc) * 0.21
         C_H2_inter = C_H2_agc + JH2/h_a(Pa_des, Tfc, Wgc, Hgc)
         C_O2_inter = C_O2_cgc + JO2/h_c(Pc_des, Tfc, Wgc, Hgc)
         i_node = 0
+
         for x in np.linspace(0, Hgdl, 10):
-            C_O2_cgdl[i_node] = C_O2_inter + (Hgdl-x)/Dc_eff(s_cgdl[i_node],epsilon_gdl,Pc_des, Tfc,epsilon_c,epsilon_gdl) * JO2
+            C_O2_cgdl[i_node] = C_O2_inter + (x)/Dc_eff(s_cgdl[i_node],epsilon_gdl,Pc_des, Tfc,epsilon_c,epsilon_gdl) * JO2
             C_H2_agdl[i_node] = C_H2_inter + (x)/Da_eff(s_agdl[i_node],epsilon_gdl,Pa_des, Tfc,epsilon_c,epsilon_gdl) * JH2
             i_node += 1
 
-        C_H2_acl = C_H2_agdl[-1] + Hcl/Da_eff(np.mean(s_agdl),epsilon_cl,Pa_des, Tfc,epsilon_c,epsilon_cl) * JH2
-        C_O2_ccl = C_O2_cgdl[0] + Hcl/Dc_eff(np.mean(s_cgdl),epsilon_cl,Pc_des, Tfc,epsilon_c,epsilon_cl) * -JO2
-        
+        C_H2_acl = C_H2_agdl[0] + Hcl/Da_eff(np.mean(s_agdl),epsilon_cl,Pa_des, Tfc,epsilon_c,epsilon_cl) * JH2
+        C_O2_ccl = C_O2_cgdl[0] + Hcl/Dc_eff(np.mean(s_cgdl),epsilon_cl,Pc_des, Tfc,epsilon_c,epsilon_cl) * JO2
         Ueq = (E0 - 8.5e-4 * (Tfc - 298.15) + R * Tfc / (2 * F) * (np.log(R * Tfc * C_H2_acl / Pref) + 0.5 * np.log(R * Tfc * C_O2_ccl / Pref)))
         f_drop = 0.5 * (1.0 - np.tanh((4 * s_cgdl[0] - 2 * slim - 2 * s_switch) / (slim - s_switch)))
         i0_c = i0_c_ref * np.exp(-Eact / R * (1 / Tfc - 1 / 353))
@@ -217,16 +104,140 @@ class PEMFC_stat:
 
         return {"Jnet": Jnet, "Jmem": Jmem,
                      "lambda_ccl": lambda_ccl, "lambda_acl": lambda_acl,"lambda_mem": lambda_mem,
-                     "C_v_ccl": Cv_ccl, "C_v_acl": Cv_acl,"C_v_cgdl": Cv_cgdl, "C_v_agdl": Cv_agdl, 
-                     "C_v_a_inter": Cv_a_inter, "C_v_c_inter": Cv_c_inter, "C_v_cgc": Cv_cgc, "C_v_agc": Cv_agc,
-                     "s_front_cgdl": s_front_cgdl, "s_front_agdl": s_front_agdl,"s_cgdl": s_cgdl, "s_agdl": s_agdl,
+                     "C_v_ccl": C_v_ccl, "C_v_acl": C_v_acl,"C_v_cgdl": C_v_cgdl, "C_v_agdl": C_v_agdl, 
+                     "C_v_a_inter": C_v_ainter, "C_v_c_inter": C_v_cinter, "C_v_cgc": C_v_cgc, "C_v_agc": C_v_agc,
+                     "s_front_cgdl": x_front_c, "s_front_agdl": x_front_a,"s_cgdl": s_cgdl, "s_agdl": s_agdl,
                      "C_H2_acl": C_H2_acl, "C_O2_ccl": C_O2_ccl,
                      "C_H2_agc": C_H2_agc, "C_O2_cgc": C_O2_cgc,
                      "C_H2_inter": C_H2_inter, "C_O2_inter": C_O2_inter,
                      "Ueq": Ueq, "eta_c": eta_c, "Rohm": Rohm,
                      "Jw_ca":Jw_ca, "Jw_an": Jw_an, "JH2": JH2, "JO2": JO2,
-                     "Jv_a_in": Win_a * Cv_in_a/Lgc, "Jv_a_out": Wout_a * Cv_agc/Lgc,
-                     "Jv_c_in": Win_c * Cv_in_c/Lgc, "Jv_c_out": Wout_c * Cv_cgc/Lgc,}
+                     "Jv_a_in": Win_a * Phi_a_des * C_v_sat(Tfc)/Lgc, "Jv_a_out": Wout_a * C_v_agc/Lgc,
+                     "Jv_c_in": Win_c * Phi_c_des * C_v_sat(Tfc)/Lgc, "Jv_c_out": Wout_c * C_v_cgc/Lgc,}
+
+    def gdl_profile(self, Jw, Win, Wout, Phi_des, P_des):
+
+        Lgc, Wgc, Hgc, Hgdl = self.parameters['Lgc'], self.parameters['Wgc'], self.parameters['Hgc'], self.parameters['Hgdl']
+        epsilon_gdl, epsilon_c = self.parameters['epsilon_gdl'], self.parameters['epsilon_c']
+        Tfc = self.operating_inputs['Tfc']
+        mu_l = 3.56e-4 # Pa.s, viscosity of liquid water at 80C
+        mu_g = 1.881e-5 # Pa.s, viscosity of water vapor at cathode
+        
+        ### Define the water flow at GC
+        Cv_in = Phi_des * C_v_sat(Tfc)
+        s = np.zeros(10)
+        C_v_gdl = np.zeros(10)
+        C_v_gc = (Jw * Lgc / Hgc + Cv_in * Win)/Wout
+        
+        # ------------------- Case 1: CL -> GC ------------------- #
+        if Jw > 0:
+            # -------- Boundary conditions -------- #
+            C_v_inter = C_v_gc + Jw/h_c(P_des, Tfc, Wgc, Hgc)
+            C_v_cl = C_v_inter + Hgdl/Dc_eff(0,epsilon_gdl,P_des, Tfc,epsilon_c,epsilon_gdl) * Jw
+            # ------------------- Regime M ------------------- #
+            if C_v_cl > C_v_sat(Tfc) and C_v_inter < C_v_sat(Tfc):
+                x_front = (C_v_sat(Tfc) - C_v_inter) * (Dc_eff(0,epsilon_gdl,P_des, Tfc,epsilon_c,epsilon_gdl) / Jw)
+                i_node = 0
+                for x in np.linspace(0, Hgdl, 10):
+                    C_v_gdl[i_node] = np.min([C_v_inter + (x)/Dc_eff(0,epsilon_gdl,P_des, Tfc,epsilon_c,epsilon_gdl) * Jw, C_v_sat(Tfc)])
+                    rhs = (M_H2O * Jw * (x - x_front)) / (-sigma(Tfc) * K0(epsilon_gdl, epsilon_c, epsilon_gdl)/nu_l(Tfc)* np.cos(theta_c_gdl)*(epsilon_gdl/K0(epsilon_gdl,epsilon_c, epsilon_gdl))**0.5)
+                    s[i_node] = self._solve_sat(rhs)
+                    i_node += 1
+            # ------------------- Regime L ------------------- #
+            elif C_v_inter > C_v_sat(Tfc) and C_v_cl > C_v_sat(Tfc):
+                mliquid = M_H2O * (Jw + (Win - Wout) * Hgc/Lgc)
+                ans1 = (mliquid * Lgc * mu_l/ (Hgc * rho_H2O(Tfc) * mu_g)) ** (1/3)
+                s_gdl_inter = ans1 / (ans1 + 1)
+                x_front = Hgdl
+                i_node = 0
+                for x in np.linspace(0, Hgdl, 10):
+                    C_v_gdl[i_node] = C_v_sat(Tfc)
+                    rhs = (M_H2O * Jw * (x)) /(-sigma(Tfc) * K0(epsilon_gdl, epsilon_c, epsilon_gdl)/nu_l(Tfc)* np.cos(theta_c_gdl)*(epsilon_gdl/K0(epsilon_gdl,epsilon_c, epsilon_gdl))**0.5) + \
+                                0.35425 * s_gdl_inter ** 4 - 0.848 * s_gdl_inter **5 + 0.6315 * s_gdl_inter ** 6
+                    s[i_node] = self._solve_sat(rhs)
+                    i_node += 1
+            # ------------------- Regime V ------------------- #
+            else: 
+                x_front = 0
+                i_node = 0
+                for x in np.linspace(0, Hgdl, 10):
+                    C_v_gdl[i_node] = C_v_inter + (x)/Dc_eff(0,epsilon_gdl,P_des, Tfc,epsilon_c,epsilon_gdl) * Jw
+                    i_node += 1
+        # ------------------- Case 2: GC -> CL ------------------- #
+        elif Jw < 0: 
+            # -------- Boundary conditions -------- #
+            C_v_inter = C_v_gc + Jw/h_c(P_des, Tfc, Wgc, Hgc)
+            C_v_cl = C_v_inter + Hgdl/Dc_eff(0,epsilon_gdl,P_des, Tfc,epsilon_c,epsilon_gdl) * Jw
+            mliquid = M_H2O * (Jw + (Win - Wout) * Hgc/Lgc)
+            ans1 = (mliquid * Lgc * mu_l/ (Hgc * rho_H2O(Tfc) * mu_g)) ** (1/3)
+            s_gdl_inter = ans1 / (ans1 + 1)
+            rhs = (-sigma(Tfc) * K0(epsilon_gdl, epsilon_c, epsilon_gdl)/nu_l(Tfc)* np.cos(theta_c_gdl)*(epsilon_gdl/K0(epsilon_gdl,epsilon_c, epsilon_gdl))**0.5)
+            x_front = (0.35425 *s_gdl_inter ** 4 - 0.848 *  s_gdl_inter**5 + 0.6315 *  s_gdl_inter ** 6) * rhs / (M_H2O * Jw)
+            # ------------------- Regime V ------------------- #
+            if  C_v_inter <= C_v_sat(Tfc):
+                x_front = 0
+                i_node = 0
+                for x in np.linspace(0, Hgdl, 10):
+                    C_v_gdl[i_node] = C_v_inter + (x)/Dc_eff(0,epsilon_gdl,P_des, Tfc,epsilon_c,epsilon_gdl) * Jw
+                    i_node += 1
+            else:
+                mliquid = M_H2O * (Jw + (Win - Wout) * Hgc/Lgc)
+                ans1 = (mliquid * Lgc * mu_l/ (Hgc * rho_H2O(Tfc) * mu_g)) ** (1/3)
+                s_gdl_inter = ans1 / (ans1 + 1)
+                rhs = (-sigma(Tfc) * K0(epsilon_gdl, epsilon_c, epsilon_gdl)/nu_l(Tfc)* np.cos(theta_c_gdl)*(epsilon_gdl/K0(epsilon_gdl,epsilon_c, epsilon_gdl))**0.5)
+                xliquid =  (0.35425 *s_gdl_inter ** 4 - 0.848 *  s_gdl_inter**5 + 0.6315 *  s_gdl_inter ** 6) * rhs / (M_H2O * Jw)
+            # ------------------- Regime M ------------------- #
+                if xliquid < Hgdl: # Regime M
+                    i_node = 0
+                    for x in np.linspace(0, Hgdl, 10):
+                        C_v_gdl[i_node] = np.min([C_v_sat(Tfc) + (x - x_front)/Dc_eff(0,epsilon_gdl,P_des, Tfc,epsilon_c,epsilon_gdl) * Jw, C_v_sat(Tfc)])
+                        rhs = (M_H2O * Jw * (x)) / (-sigma(Tfc) * K0(epsilon_gdl, epsilon_c, epsilon_gdl)/nu_l(Tfc)* np.cos(theta_c_gdl)*(epsilon_gdl/K0(epsilon_gdl,epsilon_c, epsilon_gdl))**0.5) + \
+                                0.35425 * s_gdl_inter ** 4 - 0.848 * s_gdl_inter **5 + 0.6315 * s_gdl_inter ** 6 
+                        s[i_node] = self._solve_sat(rhs)
+                        i_node += 1
+            # ------------------- Regime L ------------------- #
+                else: 
+                    x_front = Hgdl
+                    i_node = 0
+                    for x in np.linspace(0, Hgdl, 10):
+                        C_v_gdl[i_node] = C_v_sat(Tfc)
+                        rhs = (M_H2O * Jw * (x)) / (-sigma(Tfc) * K0(epsilon_gdl, epsilon_c, epsilon_gdl)/nu_l(Tfc)* np.cos(theta_c_gdl)*(epsilon_gdl/K0(epsilon_gdl,epsilon_c, epsilon_gdl))**0.5) + \
+                                0.35425 * s_gdl_inter ** 4 - 0.848 * s_gdl_inter **5 + 0.6315 * s_gdl_inter ** 6 
+                        s[i_node] = self._solve_sat(rhs)
+                        i_node += 1
+        # ------------------- Case 3: No water flow ------------------- #
+        else: 
+            # -------- Boundary conditions -------- #
+            C_v_inter = C_v_gc
+            C_v_cl = C_v_inter 
+            xliquid = 0
+            # ------------------- Determine the regime in GDL ------------------- #
+            if C_v_inter > C_v_sat(Tfc): # Regime L
+                x_front = Hgdl
+                i_node = 0
+                for x in np.linspace(0, Hgdl, 10):
+                    C_v_gdl[i_node] = C_v_sat(Tfc)
+                    s[i_node] = 0
+                    i_node += 1
+            else: # Regime V
+                x_front = 0
+                i_node = 0
+                for x in np.linspace(0, Hgdl, 10):
+                    C_v_gdl[i_node] = C_v_inter
+                    i_node += 1
+
+
+        return C_v_gdl, np.min([C_v_cl, C_v_sat(Tfc)]), np.min([C_v_inter, C_v_sat(Tfc)]), np.min([C_v_gc, C_v_sat(Tfc)]), s, x_front
+    
+    @staticmethod
+    def _solve_sat(rhs):
+        """Solve 0.35425*s^4 - 0.848*s^5 + 0.6315*s^6 = rhs for s in [0,1]."""
+        if rhs <= 0:
+            return 0.0
+        f = lambda s: 0.35425 * s**4 - 0.848 * s**5 + 0.6315 * s**6 - rhs
+        if f(1.0) < 0:
+            return 1.0
+        return brentq(f, 0, 1, xtol=1e-12)
 
 
 
