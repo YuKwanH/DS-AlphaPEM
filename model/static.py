@@ -128,18 +128,18 @@ class PEMFC_stat:
         s = np.zeros(10)
         C_v_gdl = np.zeros(10)
         C_v_gc = (Jw * Lgc / Hgc + Cv_in * Win)/Wout
+        # -------- Boundary conditions -------- #
+        C_v_inter = C_v_gc + Jw/h_c(P_des, Tfc, Wgc, Hgc)
+        C_v_cl = C_v_inter + epsilon_gdl*Hgdl/Dc_eff(np.mean(s),epsilon_gdl,P_des, Tfc,epsilon_c,epsilon_gdl) * Jw
         
         # ------------------- Case 1: CL -> GC ------------------- #
         if Jw > 0:
-            # -------- Boundary conditions -------- #
-            C_v_inter = C_v_gc + Jw/h_c(P_des, Tfc, Wgc, Hgc)
-            C_v_cl = C_v_inter + Hgdl/Dc_eff(0,epsilon_gdl,P_des, Tfc,epsilon_c,epsilon_gdl) * Jw
             # ------------------- Regime M ------------------- #
             if C_v_cl > C_v_sat(Tfc) and C_v_inter < C_v_sat(Tfc):
-                x_front = (C_v_sat(Tfc) - C_v_inter) * (Dc_eff(0,epsilon_gdl,P_des, Tfc,epsilon_c,epsilon_gdl) / Jw)
+                x_front = (C_v_sat(Tfc) - C_v_inter) * (Dc_eff(np.mean(s),epsilon_gdl,P_des, Tfc,epsilon_c,epsilon_gdl) / Jw)
                 i_node = 0
                 for x in np.linspace(0, Hgdl, 10):
-                    C_v_gdl[i_node] = np.min([C_v_inter + (x)/Dc_eff(0,epsilon_gdl,P_des, Tfc,epsilon_c,epsilon_gdl) * Jw, C_v_sat(Tfc)])
+                    C_v_gdl[i_node] = np.min([C_v_inter + (x)/Dc_eff(np.mean(s),epsilon_gdl,P_des, Tfc,epsilon_c,epsilon_gdl) * Jw, C_v_sat(Tfc)])
                     rhs = (M_H2O * Jw * (x - x_front)) / (-sigma(Tfc) * K0(epsilon_gdl, epsilon_c, epsilon_gdl)/nu_l(Tfc)* np.cos(theta_c_gdl)*(epsilon_gdl/K0(epsilon_gdl,epsilon_c, epsilon_gdl))**0.5)
                     s[i_node] = self._solve_sat(rhs)
                     i_node += 1
@@ -161,13 +161,11 @@ class PEMFC_stat:
                 x_front = 0
                 i_node = 0
                 for x in np.linspace(0, Hgdl, 10):
-                    C_v_gdl[i_node] = C_v_inter + (x)/Dc_eff(0,epsilon_gdl,P_des, Tfc,epsilon_c,epsilon_gdl) * Jw
+                    C_v_gdl[i_node] = C_v_inter + (x)/Dc_eff(np.mean(s),epsilon_gdl,P_des, Tfc,epsilon_c,epsilon_gdl) * Jw
                     i_node += 1
         # ------------------- Case 2: GC -> CL ------------------- #
         elif Jw < 0: 
             # -------- Boundary conditions -------- #
-            C_v_inter = C_v_gc + Jw/h_c(P_des, Tfc, Wgc, Hgc)
-            C_v_cl = C_v_inter + Hgdl/Dc_eff(0,epsilon_gdl,P_des, Tfc,epsilon_c,epsilon_gdl) * Jw
             mliquid = M_H2O * (Jw + (Win - Wout) * Hgc/Lgc)
             ans1 = (mliquid * Lgc * mu_l/ (Hgc * rho_H2O(Tfc) * mu_g)) ** (1/3)
             s_gdl_inter = ans1 / (ans1 + 1)

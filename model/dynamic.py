@@ -32,9 +32,9 @@ class PEMFC_dyn:
                                                             'C_Pt2_mem', 'C_Pt2_ccl', 'delta_mem', 'S_N_ccl', 'theta_ccl',
                                                             "Tagdl","Tacl","Tmem","Tccl", "Tcgdl"]
         self.micro_parameters = {"n_group_ptParticle": 10, "rmin": 1e-8, "rmax": 1e-6, "dr": 1e-6 / 10,
-                                                      "R0": 2e-9, "Vm_Pt": 1.45e-5, "krdp": 1e-6, "Cpt2_ref": 1e-3,
-                                                      "k1": 1e-6, "k1_ref": 1e-6, "k2": 1e-6, "k2_ref": 1e-6,"kdet_ref": 1e-6, "R0": 2e-9,
-                                                      "F": 96485, "rho_cc": 21.45e3, "Mcc": 195.08}
+                                                "R0": 2e-9, "Vm_Pt": 1.45e-5, "krdp": 1e-6, "Cpt2_ref": 1e-3,
+                                                "k1": 1e-6, "k1_ref": 1e-6, "k2": 1e-6, "k2_ref": 1e-6,"kdet_ref": 1e-6, "R0": 2e-9,
+                                                "F": 96485, "rho_cc": 21.45e3, "Mcc": 195.08}
         self.micro_parameters["r_m"] = (np.linspace(self.micro_parameters["rmin"], self.micro_parameters["rmax"], self.micro_parameters["n_group_ptParticle"] + 1) + self.micro_parameters["dr"] / 2)[1:]
         # GDL nodes name discretization
         discretized_region = ['C_v_agdl', 'C_v_cgdl', 's_agdl', 's_cgdl', 'C_H2_agdl', 'C_O2_cgdl', "Tcgdl", "Tagdl"]
