@@ -67,7 +67,7 @@ class PEMFC_stat:
                 n_iter += 1
             
             if n_iter > 1000:
-                print("Warning: Solution did not converge after 1000 iterations.")
+                #print("Warning: Solution did not converge after 1000 iterations.")
                 break
 
         JH2 = -i / (2 * F)
