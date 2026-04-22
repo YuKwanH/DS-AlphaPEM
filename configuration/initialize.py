@@ -1,6 +1,8 @@
 from configuration.settings import *
 from model.coefficients import *
 from model.states import *
+import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
 
 """
 Computing parameters
@@ -34,7 +36,7 @@ undetermined_physical_parameters = {'epsilon_gdl': 0.7, "epsilon_cl": 0.15,
                                     'i0_c_ref': 10.6, 'kappa_c': 0.1, 'C_scl': 1e8, 
                                     'a_slim': 0.01, 'b_slim': 0.25, 'a_switch': 0.13,
                                     "Hcl": 1e-5, "Hgdl": 2.e-4}
-Wout_c_points = [2.7, 4.7, 4.7, 4.7, 4.7]
+
 computing_parameters = {'max_step': max_step, 'n_gdl': 10,'n_mem':10,'n_group_pt':10,
                                             't_purge': t_purge, 'type_fuel_cell': type_fuel_cell, 'type_control': type_control, 'type_purge': type_purge}
 
@@ -102,7 +104,7 @@ def init_x(operating_inputs, parameters):
     Phi_csm_ini, Phi_cem_ini = Phi_c_des, Phi_des_moy  # It is the supply/exhaust manifold relative humidity
     #     at the cathode side.
     Wcp_ini = 0  # kg.s-1. It is the flow rate of the air compressor.
-    Wa_inj_ini = 0  # kg.s-1. It is the flow rate of the air compressor at the anode side.
+    Wa_inj_ini = 0  # kg.s-1. 3 NL/min
     Wc_inj_ini = 0  # kg.s-1. It is the flow rate of the air compressor at the cathode side.
     Abp_a_ini = 0  # It is the throttle area of the back pressure valve at the anode.
     Abp_c_ini = 0  # It is the throttle area of the back pressure valve at the cathode.
@@ -180,3 +182,53 @@ def expand_profile_on_nodes(profile_key, compact_values):
         else:
             expanded_values.append(0.0)
     return expanded_values
+
+
+
+# Colormap: Temperature condition (50, 60, 70 °C)
+temperature_values = [50, 60, 70]
+colormap_temp = {
+    50: '#1f77b4',   # blue
+    60: '#ff7f0e',   # orange
+    70: '#d62728'    # red
+}
+
+# Linemap: Pressure condition (PA = PC always equal)
+pressure_values = [1.3, 1.4, 1.5]  # in bar (130, 140, 150 kPa)
+linemap_pressure = {
+    1.3: '-',      # solid
+    1.4: '--',     # dashed
+    1.5: ':'       # dotted
+}
+
+# Markermap: RH condition (0 and 0.5)
+rh_values = [0, 0.5]
+markermap_rh = {
+    0: 'o',        # circle
+    0.5: 's'       # square
+}
+
+# Function to get plotting properties from condition key
+def get_plot_properties(cond_key):
+    """
+    Extract temperature, pressure, and RH from condition key string.
+    Key format: "RHA0/RHC{RH}_P{P}_T{T}"
+    Returns: dict with 'color', 'linestyle', 'marker', 'label'
+    """
+    import re
+    pattern = r'RHA\d+/RHC([\d.]+)_P([\d.]+)_T(\d+)'
+    match = re.match(pattern, cond_key)
+
+    if not match:
+        return {'color': 'black', 'linestyle': '-', 'marker': 'o', 'label': cond_key}
+
+    rh = float(match.group(1))
+    p = float(match.group(2))
+    t = int(match.group(3))
+
+    return {
+        'color': colormap_temp.get(t, 'black'),
+        'linestyle': linemap_pressure.get(p, '-'),
+        'marker': markermap_rh.get(rh, 'o'),
+        'label': cond_key
+    }

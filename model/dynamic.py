@@ -397,7 +397,6 @@ class PEMFC_dyn:
         JT_acl_mem = (k_CL+k_PEM)/2 * (x["Tacl"] - x["Tmem_1"]) / ((Hmem/n_mem+Hcl/2))
         JT_agc_agdl =  k_GDL * (Tfc - x["Tagdl_1"]) / (Hgdl/n_gdl + Hgc/2)
         JT_cgdl_cgc = k_GDL * (x[f"Tcgdl_{n_gdl}"] - Tfc) / (Hgdl/n_gdl + Hgc/2)
-
         Sr_acl = - deltaS_HOR * iload/(2*F)* x["Tacl"]
         Sr_ccl = - deltaS_OOR * iload/(4*F) * x["Tccl"] + deltaS_HOR * iload/(2*F)* x["Tccl"]
         Sad_acl =  0#massflow["S_sorp_acl"] * 42e3
@@ -409,7 +408,6 @@ class PEMFC_dyn:
         Sre_mem =  np.array(Rmem) * iload**2 
         Sec_agdl = 0
         Sec_cgdl = 0
-
         JT_cgdl = np.zeros(n_gdl-1)
         JT_agdl = np.zeros(n_gdl-1)
         JT_mem = np.zeros(n_mem-1)
@@ -433,7 +431,6 @@ class PEMFC_dyn:
         Wc_inj_des = Wc_v_des - Wv_hum_in  # Desired humidifier flow rate
 
         # Auxiliary dynamics 
-        
         dif['dPasm / dt'] = (Wasm_in - n_cell * Wasm_out) / (Vsm * Masm) * R * Tfc
         dif['dPaem / dt'] = (n_cell * Waem_in - Waem_out) / (Vem * Maem) * R * Tfc
         dif['dPcsm / dt'] = (Wcsm_in - n_cell * Wcsm_out) / (Vsm * Mcsm) * R * Tfc
@@ -445,8 +442,8 @@ class PEMFC_dyn:
         dif['dPhi_cem / dt'] = (Jv_c_out * Hgc * Wgc * n_cell - Wv_cem_out) / Vem * R * Tfc / Psat(Tfc)
         dif['dWcp / dt'] = (Wcp_des - x['Wcp']) / tau_cp  # Estimation at the first order.
         ## Anode and cathode humidifiers evolution
-        dif['dWa_inj / dt'] = (Wa_inj_des - x['Wa_inj']) / tau_hum  # Estimation at the first order.
-        dif['dWc_inj / dt'] = (Wc_inj_des - x['Wc_inj']) / tau_hum  # Estimation at the first order.
+        dif['dWa_inj / dt'] = 0 #(Wa_inj_des - x['Wa_inj']) / tau_hum  # Estimation at the first order.
+        dif['dWc_inj / dt'] = 0 #(Wc_inj_des - x['Wc_inj']) / tau_hum  # Estimation at the first order.
         ## Throttle area evolution inside the anode auxiliaries
         dif['dAbp_a / dt'] = - 1e-6 * (Pa_des - Pagc) #+ 1e-7 * dPagcdt  # PD controller
         if x['Abp_a'] > A_T and dif['dAbp_a / dt'] > 0:  # The throttle area cannot be higher than the maximum value
@@ -689,7 +686,6 @@ class PEMFC_dyn:
         # Inlet and outlet flows (mol/s) or (kg/s)
         # Anode inlet
         if Iload < self.Imin_aux and self.Imin_aux > 0:
-            
             Wrd = n_cell * M_H2 * Sa * (self.Imin_aux / Aact ) / (2 * F) * Aact  # kg.s-1
         else:
             Wrd = n_cell * M_H2 * Sa * (iload) / (2 * F) * Aact  # kg.s-1
@@ -725,7 +721,6 @@ class PEMFC_dyn:
         Jv_c_out = Phi_cgc * Psat(Tfc) / Pcgc * Jc_out
         Wv_cem_out = x['Phi_cem'] * Psat(Tfc) / x['Pcem'] * (Wcem_out / Mcem)
         J_N2_out = (1 - y_cgc) * (1 - Phi_cgc * Psat(Tfc) / Pcgc) * Jc_out
-        
         
         # Resistance
         # The equilibrium potential
@@ -807,6 +802,7 @@ class PEMFC_dyn:
                                             (x[f'C_v_cgdl_{i + 1}'] - x[f'C_v_cgdl_{i}']) / (Hgdl / n_gdl)
         Jv_ccl_cgdl = - 2 * Dc_eff(s_ccl_cgdl, epsilon_mean, Pccl_cgdl, (x[f"Tcgdl_1"] + x['Tccl']) / 2, epsilon_c, epsilon_gdl) * \
                                 (x['C_v_cgdl_1'] - x["C_v_ccl"]) / (Hgdl / n_gdl + Hcl/2)
+        
         # __________________________________________H2 and O2 flows (mol.m-2.s-1)___________________________________________
         # Hydrogen and oxygen consumption
         # Anode side

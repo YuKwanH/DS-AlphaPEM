@@ -124,7 +124,7 @@ class PEMFC_stat:
         mu_g = 1.881e-5 # Pa.s, viscosity of water vapor at cathode
         
         ### Define the water flow at GC
-        Cv_in = Phi_des * C_v_sat(Tfc)
+        Cv_in = 1#Phi_des * C_v_sat(Tfc)
         s = np.zeros(10)
         C_v_gdl = np.zeros(10)
         C_v_gc = (Jw * Lgc / Hgc + Cv_in * Win)/Wout
