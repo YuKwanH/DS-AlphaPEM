@@ -15,16 +15,16 @@ type_purge = "constant_purge"
 Operating inputs and parameters
 """
 operating_inputs = {'current_density': lambda x: 0.1e4, 'Tfc': 343.15, 
-                                 'Pa_des': 1.5e5, 'Pc_des': 1.5e5,
-                                 'Phi_a_des': 0.0, 'Phi_c_des': 0.5,
-                                 'Sa': 1.2, 'Sc': 2.5,}
+                                    'Pa_des': 1.5e5, 'Pc_des': 1.5e5,
+                                    'Phi_a_des': 0.0, 'Phi_c_des': 0.5,
+                                    'Sa': 1.2, 'Sc': 2.5,}
 
 # Computing parameters
 max_step = 0.1
 n_gdl = 10
 t_purge = 2.4, 15
 
-accessible_physical_parameters = {'Aact': 30e-4, 'Hmem': 2.0e-5, 'Hgc': 8e-4, 'Wgc': 4e-4, 'Lgc': 1.287} #m
+accessible_physical_parameters = {'Aact': 31e-4, 'Hmem': 1.2e-5, 'Hgc': 8e-4, 'Wgc': 4e-4, 'Lgc': 1.287} #m
 
 current_parameters = {'t_step': (0, 3600, 100, 1.5), 'i_step': (0.5e4, 1.5e4),
                                         'delta_pola': (30, 30, 0.1e4, 60), 'i_max_pola': 1.65e4, # 50A/30e-4

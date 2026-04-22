@@ -57,8 +57,8 @@ class PEMFC_dyn:
         self.solver_variable_names[index_theta_ccl:index_theta_ccl] = [f'theta_ccl_{i}' for i in range(1, self.micro_parameters["n_group_ptParticle"] + 1)]
         #pd.DataFrame(self.solver_variable_names).to_csv('./var name.csv')
         self.all_variable_names = self.solver_variable_names + ['t', 'Ucell','S_sorp_acl', 'S_sorp_ccl',
-                                                                                                    'J_lambda_mem_acl', 'J_lambda_mem_ccl',
-                                                                                                    'Pagc', 'Pcgc', "Wasm_in"]
+                                                                                                            'J_lambda_mem_acl', 'J_lambda_mem_ccl',
+                                                                                                            'Pagc', 'Pcgc', "Wasm_in", "Wrd"]
         self.variables = {key: [] for key in self.all_variable_names}
         self.dif_eq = {('d' + key + ' / dt'): 0 for key in self.solver_variable_names}
         # Simulation setup
@@ -442,8 +442,8 @@ class PEMFC_dyn:
         dif['dPhi_cem / dt'] = (Jv_c_out * Hgc * Wgc * n_cell - Wv_cem_out) / Vem * R * Tfc / Psat(Tfc)
         dif['dWcp / dt'] = (Wcp_des - x['Wcp']) / tau_cp  # Estimation at the first order.
         ## Anode and cathode humidifiers evolution
-        dif['dWa_inj / dt'] = 0 #(Wa_inj_des - x['Wa_inj']) / tau_hum  # Estimation at the first order.
-        dif['dWc_inj / dt'] = 0 #(Wc_inj_des - x['Wc_inj']) / tau_hum  # Estimation at the first order.
+        dif['dWa_inj / dt'] = (Wa_inj_des - x['Wa_inj']) / tau_hum  # Estimation at the first order.
+        dif['dWc_inj / dt'] = (Wc_inj_des - x['Wc_inj']) / tau_hum  # Estimation at the first order.
         ## Throttle area evolution inside the anode auxiliaries
         dif['dAbp_a / dt'] = - 1e-6 * (Pa_des - Pagc) #+ 1e-7 * dPagcdt  # PD controller
         if x['Abp_a'] > A_T and dif['dAbp_a / dt'] > 0:  # The throttle area cannot be higher than the maximum value
@@ -589,7 +589,7 @@ class PEMFC_dyn:
             self.loadprofile.append(i_fc * self.parameters["Aact"])
             last_solver_variables = {key: self.variables[key][j] for key in self.solver_variable_names}
             flows_recovery = self.calculate_flows(t = self.variables['t'][j], sv = last_solver_variables)
-            for key in ['S_sorp_acl', 'S_sorp_ccl', 'J_lambda_mem_acl', 'J_lambda_mem_ccl', 'Pagc', 'Pcgc',"Wasm_in"]:
+            for key in ['S_sorp_acl', 'S_sorp_ccl', 'J_lambda_mem_acl', 'J_lambda_mem_ccl', 'Pagc', 'Pcgc','Wrd', 'Wasm_in']:
                 self.variables[key].append(flows_recovery[key])
             prd_ccl = [last_solver_variables[f"S_N_ccl_{i + 1}"] for i in range(self.micro_parameters["n_group_ptParticle"])]
             theta_ccl =  [last_solver_variables[f"theta_ccl_{i + 1}"] for i in range(self.micro_parameters["n_group_ptParticle"])]
@@ -943,5 +943,5 @@ class PEMFC_dyn:
                      'Sl_agdl': Sl_agdl, 'Sl_acl': Sl_acl, 'Sl_ccl': Sl_ccl, 'Sl_cgdl': Sl_cgdl,
                      'Pagc': Pagc, 'Pcgc': Pcgc, 'Wasm_in': Wasm_in, 'Wasm_out': Wasm_out, 'Waem_in': Waem_in,
                      'Waem_out': Waem_out, 'Wcsm_in': Wcsm_in, 'Wcsm_out': Wcsm_out, 'Wcem_in': Wcem_in, 'Wcem_out': Wcem_out,
-                     'Ware': Ware, 'Wv_asm_in': Wv_asm_in, 'Wv_aem_out': Wv_aem_out, 'Wv_csm_in': Wv_csm_in,
+                     'Wrd': Wrd, 'Ware': Ware, 'Wv_asm_in': Wv_asm_in, 'Wv_aem_out': Wv_aem_out, 'Wv_csm_in': Wv_csm_in,
                      'Wv_cem_out': Wv_cem_out}
