@@ -16,7 +16,7 @@ class PEMFC_stat:
         Phi_a_des, Phi_c_des = self.operating_inputs['Phi_a_des'], self.operating_inputs['Phi_c_des']
         Hcl, Hmem, Wgc, Hgc, Lgc = self.parameters['Hcl'], self.parameters['Hmem'], self.parameters['Wgc'], self.parameters['Hgc'], self.parameters['Lgc']
         epsilon_c, epsilon_cl, epsilon_gdl = self.parameters['epsilon_c'], self.parameters['epsilon_cl'], self.parameters['epsilon_gdl']
-    
+        epsilon_mc, tau = self.parameters['epsilon_mc'], self.parameters['tau']
         # ------------------------------ Initial guess------------------------------ #
         Jnet = 0 
         Jw_ca = i / (2 * F) 
@@ -102,6 +102,17 @@ class PEMFC_stat:
                 Rmem += [(Hmem/parameters['n_mem']) / (0.1879 * np.exp(1268 * (1 / 303.15 - 1 / Tfc)))]
         Rohm = sum(Rmem) + parameters["Re"]
 
+        if lambda_ccl >= 1:
+            Rccl = Hcl / ((epsilon_mc ** tau) * (0.5139 * lambda_ccl - 0.326) * np.exp(1268 * (1 / 303.15 - 1 / Tfc)))
+        else:
+            Rccl = Hcl / ((epsilon_mc ** tau) * 0.1879 * np.exp(1268 * (1 / 303.15 - 1 / Tfc)))
+        # 
+        if lambda_acl >= 1:
+            Racl = Hcl / ((epsilon_mc ** tau) * (0.5139 * lambda_acl - 0.326) * np.exp(1268 * (1 / 303.15 - 1 / Tfc)))
+        else:
+            Racl = Hcl / ((epsilon_mc ** tau) * 0.1879 * np.exp(1268 * (1 / 303.15 - 1 / Tfc)))
+
+
         return {"Jnet": Jnet, "Jmem": Jmem,
                      "lambda_ccl": lambda_ccl, "lambda_acl": lambda_acl,"lambda_mem": lambda_mem,
                      "C_v_ccl": C_v_ccl, "C_v_acl": C_v_acl,"C_v_cgdl": C_v_cgdl, "C_v_agdl": C_v_agdl, 
@@ -110,7 +121,7 @@ class PEMFC_stat:
                      "C_H2_acl": C_H2_acl, "C_O2_ccl": C_O2_ccl,
                      "C_H2_agc": C_H2_agc, "C_O2_cgc": C_O2_cgc,
                      "C_H2_inter": C_H2_inter, "C_O2_inter": C_O2_inter,
-                     "Ueq": Ueq, "eta_c": eta_c, "Rohm": Rohm,
+                     "Ueq": Ueq, "eta_c": eta_c, "Rohm": Rohm, "Rccl": Rccl, "Racl": Racl,
                      "Jw_ca":Jw_ca, "Jw_an": Jw_an, "JH2": JH2, "JO2": JO2,
                      "Jv_a_in": Win_a * Phi_a_des * C_v_sat(Tfc)/Lgc, "Jv_a_out": Wout_a * C_v_agc/Lgc,
                      "Jv_c_in": Win_c * Phi_c_des * C_v_sat(Tfc)/Lgc, "Jv_c_out": Wout_c * C_v_cgc/Lgc,}
