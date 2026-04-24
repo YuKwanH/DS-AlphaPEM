@@ -204,8 +204,8 @@ linemap_pressure = {
 # Markermap: RH condition (0 and 0.5)
 rh_values = [0, 0.5]
 markermap_rh = {
-    0: 'o',        # circle
-    0.5: 's'       # square
+    0: 'x',        # cross
+    0.5: 'o'       # circle
 }
 
 # Function to get plotting properties from condition key

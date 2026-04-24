@@ -1,16 +1,14 @@
-from dynamic.reaction import *
+from reaction import *
 from configuration.settings import *
 from model.coefficients import Psat, rho_H2O
 
 
-
-
-def gradient_AGC(dif,Jv_a_in, Jv_a_out, Lgc, Jv_agc_agdl, Hgc, J_H2_in, J_H2_out, J_H2_agc_agdl, **kwargs):
+def dxdt_AGC(dif,Jv_a_in, Jv_a_out, Lgc, Jv_agc_agdl, Hgc, J_H2_in, J_H2_out, J_H2_agc_agdl, **kwargs):
     dif['dC_v_agc / dt'] = (Jv_a_in - Jv_a_out) / Lgc - Jv_agc_agdl / Hgc
     dif['dC_H2_agc / dt'] = (J_H2_in - J_H2_out) / Lgc - J_H2_agc_agdl / Hgc
     
 
-def gradient_AGDL(dif,sv, Hgdl, epsilon_gdl, n_gdl, Jl_agdl_agdl, Jl_agdl_acl, Sl_agdl, Jv_agc_agdl,
+def dxdt_AGDL(dif,sv, Hgdl, epsilon_gdl, n_gdl, Jl_agdl_agdl, Jl_agdl_acl, Sl_agdl, Jv_agc_agdl,
                                     Jv_agdl_agdl, Jv_agdl_acl, Sv_agdl, J_H2_agc_agdl, J_H2_agdl_agdl, J_H2_agdl_acl, **kwargs):
 
     #dif['ds_agdl_1 / dt'] = 0  # Dirichlet boundary condition. s_agdl_1 is initialized to 0 and remains constant.
@@ -29,12 +27,12 @@ def gradient_AGDL(dif,sv, Hgdl, epsilon_gdl, n_gdl, Jl_agdl_agdl, Jl_agdl_acl, S
     dif[f'dC_H2_agdl_{n_gdl} / dt'] = 1 / (epsilon_gdl * (1 - sv[f's_agdl_{n_gdl}'])) * (J_H2_agdl_agdl[n_gdl - 1] - J_H2_agdl_acl) / (Hgdl / n_gdl)
 
 
-def gradient_CGC(dif,J_O2_in, J_O2_out, Jv_c_out, Jv_c_in, Jv_cgdl_cgc, J_O2_cgdl_cgc, Hgc, Lgc, **kwargs):
+def dxdt_CGC(dif,J_O2_in, J_O2_out, Jv_c_out, Jv_c_in, Jv_cgdl_cgc, J_O2_cgdl_cgc, Hgc, Lgc, **kwargs):
     dif['dC_v_cgc / dt'] = (Jv_c_in - Jv_c_out) / Lgc + Jv_cgdl_cgc / Hgc
     dif['dC_O2_cgc / dt'] = (J_O2_in - J_O2_out) / Lgc + J_O2_cgdl_cgc / Hgc
 
 
-def gradient_CGDL(dif,sv, Jv_ccl_cgdl, Jv_cgdl_cgdl, Sv_cgdl, Jv_cgdl_cgc, epsilon_gdl, J_O2_ccl_cgdl,
+def dxdt_CGDL(dif,sv, Jv_ccl_cgdl, Jv_cgdl_cgdl, Sv_cgdl, Jv_cgdl_cgc, epsilon_gdl, J_O2_ccl_cgdl,
                                     J_O2_cgdl_cgdl, J_O2_cgdl_cgc, Jl_ccl_cgdl, Jl_cgdl_cgdl, Sl_cgdl, n_gdl, Hgdl, **kwargs):
     dif['ds_cgdl_1 / dt'] = 1 / (rho_H2O(sv["Tcgdl_1"]) * epsilon_gdl) * ((Jl_ccl_cgdl - Jl_cgdl_cgdl[1]) / (Hgdl / n_gdl) + M_H2O * Sl_cgdl[1])
     for i in range(2, n_gdl):
@@ -50,14 +48,14 @@ def gradient_CGDL(dif,sv, Jv_ccl_cgdl, Jv_cgdl_cgdl, Sv_cgdl, Jv_cgdl_cgc, epsil
     dif[f'dC_O2_cgdl_{n_gdl} / dt'] = 1 / (epsilon_gdl * (1 - sv[f's_cgdl_{n_gdl}'])) * (J_O2_cgdl_cgdl[n_gdl - 1] - J_O2_cgdl_cgc) / (Hgdl / n_gdl)
 
 
-def gradient_ACL(dif,sv, Jl_agdl_acl, Hcl, Sl_acl, Jv_agdl_acl, J_H2_agdl_acl, S_sorp_acl, S_H2_acl,
+def dxdt_ACL(dif,sv, Jl_agdl_acl, Hcl, Sl_acl, Jv_agdl_acl, J_H2_agdl_acl, S_sorp_acl, S_H2_acl,
                                 Sv_acl, epsilon_cl, Sp_acl, J_H2_acl_mem, **kwargs):
     dif['ds_acl / dt'] = 1 / (rho_H2O(sv["Tacl"]) * epsilon_cl) * (Jl_agdl_acl / Hcl + M_H2O * Sl_acl)
     dif['dC_v_acl / dt'] = 1 / (epsilon_cl * (1 - sv['s_acl'])) * (Jv_agdl_acl / Hcl - S_sorp_acl + Sv_acl + + Sp_acl)
     dif['dC_H2_acl / dt'] = 1 / (epsilon_cl * (1 - sv['s_acl'])) * ((J_H2_agdl_acl - J_H2_acl_mem)/ Hcl + S_H2_acl)
 
 
-def gradient_mem(dif, J_lambda_mem_acl, J_lambda_mem_ccl, J_O2_mem, J_H2_mem, J_lambda_mem,
+def dxdt_MEM(dif, J_lambda_mem_acl, J_lambda_mem_ccl, J_O2_mem, J_H2_mem, J_lambda_mem,
                                    J_O2_mem_ccl, J_H2_acl_mem, J_Pt2_mem,S_Pt2_mem, Sp_ccl,
                                    epsilon_mc, Hcl, Hmem, S_sorp_acl, S_sorp_ccl, Tfc, Ucell,C_O2_ccl, n_mem,**kwargs):
 
@@ -80,7 +78,7 @@ def gradient_mem(dif, J_lambda_mem_acl, J_lambda_mem_ccl, J_O2_mem, J_H2_mem, J_
     dif[f'dC_H2_mem_{n_mem} / dt'] = (J_H2_mem[- 1] - 0) / (Hmem / n_mem)
 
 
-def gradient_CCL(dif,sv, Jl_ccl_cgdl, Hcl, Sl_ccl, Jv_ccl_cgdl, S_sorp_ccl, Sv_ccl, J_O2_ccl_cgdl, J_O2_mem_ccl, Sp_ccl,
+def dxdt_CCL(dif,sv, Jl_ccl_cgdl, Hcl, Sl_ccl, Jv_ccl_cgdl, S_sorp_ccl, Sv_ccl, J_O2_ccl_cgdl, J_O2_mem_ccl, Sp_ccl,
                                 S_O2_ccl, prd0, prd_ccl, kcdis, r_m, drdt, J_Pt2_mem, Hmem, n_mem, epsilon_mc, epsilon_cl, **kwargs):
 
     M_Pt0 = 4 / 3 * np.pi * rho_Pt * np.trapezoid(y=prd0 * r_m ** 3, x=r_m)
@@ -92,16 +90,16 @@ def gradient_CCL(dif,sv, Jl_ccl_cgdl, Hcl, Sl_ccl, Jv_ccl_cgdl, S_sorp_ccl, Sv_c
     dif['dC_O2_ccl / dt'] = 1 / (epsilon_cl * (1 - sv['s_ccl'])) * ((J_O2_mem_ccl- J_O2_ccl_cgdl) / Hcl  + S_O2_ccl)
 
 
-def gradient_Vfc(dif, i_fc, C_O2_ccl, eta_c, Tccl, Hcl, i0_c_ref, kappa_c, C_scl, f_drop, ECSA, **kwargs):
+def dxdt_U(dif, i_fc, C_O2_ccl, eta_c, Tccl, Hcl, i0_c_ref, kappa_c, C_scl, f_drop, ECSA, **kwargs):
     i0_c = (ECSA * i0_c_ref * (C_O2_ccl / C_O2ref)** kappa_c) * np.exp(Eact / R * (1 / 353 - 1 / Tccl))
     dif['deta_c / dt'] = 1 / (C_scl * Hcl) * ((i_fc) - i0_c * np.exp(f_drop * alpha_c * F / (R * Tccl) * eta_c))
 
 
-def gradient_N2(dif,J_N2_in, J_N2_out, Lgc, **kwargs):
+def dxdt_N2(dif,J_N2_in, J_N2_out, Lgc, **kwargs):
     dif['dC_N2 / dt'] = (J_N2_in - J_N2_out) / Lgc
 
 
-def gradient_Manifold(dif,Masm, Maem, Mcsm, Mcem, Tfc, Hgc, Wgc,
+def dxdt_Manifold(dif,Masm, Maem, Mcsm, Mcem, Tfc, Hgc, Wgc,
                                             Jv_a_in, Jv_a_out, Jv_c_in, Jv_c_out,
                                             Wasm_in, Wasm_out, Waem_in, Waem_out, Wcsm_in, Wcsm_out,
                                             Wcem_in, Wcem_out, Wv_asm_in, Wv_aem_out, Wv_csm_in,
@@ -120,7 +118,7 @@ def gradient_Manifold(dif,Masm, Maem, Mcsm, Mcem, Tfc, Hgc, Wgc,
     dif['dPhi_csm / dt'] = (Wv_csm_in - Jv_c_in * Hgc * Wgc * n_cell) / Vsm * R * Tfc / Psat(Tfc)
     dif['dPhi_cem / dt'] = (Jv_c_out * Hgc * Wgc * n_cell - Wv_cem_out) / Vem * R * Tfc / Psat(Tfc)
 
-def gradient_compressor(dif, Wcp_des, Wa_inj_des, Wc_inj_des, Wcp, Wa_inj, Wc_inj, **kwargs):
+def dxdt_CP(dif, Wcp_des, Wa_inj_des, Wc_inj_des, Wcp, Wa_inj, Wc_inj, **kwargs):
 
     # Air compressor evolution
     dif['dWcp / dt'] = (Wcp_des - Wcp) / tau_cp  # Estimation at the first order.
@@ -128,7 +126,7 @@ def gradient_compressor(dif, Wcp_des, Wa_inj_des, Wc_inj_des, Wcp, Wa_inj, Wc_in
     dif['dWa_inj / dt'] = (Wa_inj_des - Wa_inj) / tau_hum  # Estimation at the first order.
     dif['dWc_inj / dt'] = (Wc_inj_des - Wc_inj) / tau_hum  # Estimation at the first order.
 
-def gradient_throttleArea(dif,Pagc, Pcgc, Abp_a, Abp_c, Tfc, Pa_des, Pc_des, **kwargs):
+def dxdt_TH(dif,Pagc, Pcgc, Abp_a, Abp_c, Tfc, Pa_des, Pc_des, **kwargs):
     
     # Calculation of the pressure derivative inside the gas channels
     dPagcdt = (dif['dC_v_agc / dt'] + dif['dC_H2_agc / dt']) * R * Tfc
@@ -149,8 +147,7 @@ def gradient_throttleArea(dif,Pagc, Pcgc, Abp_a, Abp_c, Tfc, Pa_des, Pc_des, **k
         dif['dAbp_c / dt'] = 0
 
 
-
-def gradient_prdCCL(dif, prd, theta, kox, kcdis, kdet, drdt, r_m):
+def dxdt_PRD(dif, prd, theta, kox, kcdis, kdet, drdt, r_m):
     """
     Urchaga et al 2015 dr/dt = VmKrdpCpt,avg*exp(-R0/r) - VmKdisCpt,avg*exp(-R0/r)
     """

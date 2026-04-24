@@ -1,14 +1,10 @@
 import pandas as pd
 import scipy
-
 from configuration.initialize import Tfc
 from model.coefficients import *
 from model.states import *
 from dynamic.gradients import *
 from dynamic.control import control_operating_conditions
-
-import warnings
-warnings.filterwarnings("ignore")
 
 class PEMFC_dyn:
     
