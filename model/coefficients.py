@@ -1,4 +1,4 @@
-from configuration.settings import *
+from config.settings import *
 
 
 def Psat(T):

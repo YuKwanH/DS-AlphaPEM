@@ -1,11 +1,10 @@
 import pandas as pd
 import scipy
 
-from configuration.initialize import Tfc
+from config.initialize import Tfc
 from model.coefficients import *
 from model.states import *
-from dynamic.gradients import *
-from dynamic.control import control_operating_conditions
+from modules.state_eq import *
 
 class PEMFC:
 
