@@ -1,5 +1,5 @@
 import numpy as np
-from configuration.settings import *
+from config.settings import *
 
 def PtOxideDissolution(theta, Ch):
     """

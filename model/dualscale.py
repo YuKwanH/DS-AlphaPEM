@@ -14,7 +14,7 @@ class PEMFC:
         def dxdt(self, t, x, u):
                 
                 # Create state gradients dictionary
-                dif = {('d' + key + ' / dt'): 0 for key in self.solver_variable_names}
+                dif = {('d' + key + ' / dt'): 0 for key in solver_variable_names}
                 # Mapping macro-scale variables
                 x = {}
 

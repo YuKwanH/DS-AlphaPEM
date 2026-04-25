@@ -1,10 +1,6 @@
-import pandas as pd
-import scipy
-from configuration.initialize import Tfc
 from model.coefficients import *
 from model.states import *
-from dynamic.gradients import *
-from dynamic.control import control_operating_conditions
+from modules.state_eq import *
 
 class PEMFC_dyn:
     
@@ -216,15 +212,15 @@ class PEMFC_dyn:
         #________________________________________Dissolved water flows (mol.m-2.s-1)_______________________________________
         # Anode side
         J_lambda_mem_acl = 2.5 / 22 * iload / F * x['lambda_acl'] - \
-             rho_mem / M_eq * D(x['lambda_acl'], x['Tacl']) * (x['lambda_mem_1'] - x['lambda_acl']) / (Hmem/ n_mem + Hcl/10)
+             rho_mem / M_eq * Dw(x['lambda_acl'], x['Tacl']) * (x['lambda_mem_1'] - x['lambda_acl']) / (Hmem/ n_mem + Hcl/10)
         # Cathode side
         J_lambda_mem_ccl = 2.5 / 22 * iload / F * x['lambda_ccl'] - \
-            rho_mem / M_eq * D(x['lambda_ccl'], x['Tccl']) * (x['lambda_ccl'] - x[f'lambda_mem_{n_mem}']) / (Hmem/ n_mem + Hcl/5)
+            rho_mem / M_eq * Dw(x['lambda_ccl'], x['Tccl']) * (x['lambda_ccl'] - x[f'lambda_mem_{n_mem}']) / (Hmem/ n_mem + Hcl/5)
         # Membrane internal
         J_lambda_mem = [0] * (n_mem-1)
         for i in range(n_mem-1):
             J_lambda_mem[i] = 2.5 / 22 * iload / F * x[f'lambda_mem_{i+1}'] - \
-             rho_mem / M_eq * D(x[f'lambda_mem_{i+1}'], x[f"Tmem_{i+1}"]) * (x[f'lambda_mem_{i+2}'] - x[f'lambda_mem_{i+1}']) / (Hmem / n_mem)
+             rho_mem / M_eq * Dw(x[f'lambda_mem_{i+1}'], x[f"Tmem_{i+1}"]) * (x[f'lambda_mem_{i+2}'] - x[f'lambda_mem_{i+1}']) / (Hmem / n_mem)
 
         # _____________________________________________Vapor flows (mol.m-2.s-1)____________________________________________
         # Convective vapor flows
@@ -745,15 +741,15 @@ class PEMFC_dyn:
         #________________________________________Dissolved water flows (mol.m-2.s-1)_______________________________________
         # Anode side
         J_lambda_mem_acl = 2.5 / 22 * iload / F * x['lambda_acl'] - \
-                rho_mem / M_eq * D(x['lambda_acl'], x['Tacl']) * (x['lambda_mem_1'] - x['lambda_acl']) / (Hmem/ n_mem + Hcl/10)
+                rho_mem / M_eq * Dw(x['lambda_acl'], x['Tacl']) * (x['lambda_mem_1'] - x['lambda_acl']) / (Hmem/ n_mem + Hcl/10)
         # Cathode side
         J_lambda_mem_ccl = 2.5 / 22 * iload / F * x['lambda_ccl'] - \
-            rho_mem / M_eq * D(x['lambda_ccl'], x['Tccl']) * (x['lambda_ccl'] - x[f'lambda_mem_{n_mem}']) / (Hmem/ n_mem + Hcl/5)
+            rho_mem / M_eq * Dw(x['lambda_ccl'], x['Tccl']) * (x['lambda_ccl'] - x[f'lambda_mem_{n_mem}']) / (Hmem/ n_mem + Hcl/5)
         # Membrane internal
         J_lambda_mem = [0] * (n_mem-1)
         for i in range(n_mem-1):
             J_lambda_mem[i] = 2.5 / 22 * iload / F * x[f'lambda_mem_{i+1}'] - \
-                rho_mem / M_eq * D(x[f'lambda_mem_{i+1}'], x[f"Tmem_{i+1}"]) * (x[f'lambda_mem_{i+2}'] - x[f'lambda_mem_{i+1}']) / (Hmem / n_mem)
+                rho_mem / M_eq * Dw(x[f'lambda_mem_{i+1}'], x[f"Tmem_{i+1}"]) * (x[f'lambda_mem_{i+2}'] - x[f'lambda_mem_{i+1}']) / (Hmem / n_mem)
 
         #_____________________________________Liquid water flows (kg.m-2.s-1)__________________________________________
         Jl_agdl_agc = x["s_agdl_1"] **3 / (1 - x["s_agdl_1"]) * rho_H2O(x["Tagdl_1"]) *(1/1298)  *4.8 * 1e-5/3e-4

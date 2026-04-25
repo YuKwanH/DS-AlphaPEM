@@ -1,5 +1,5 @@
-from reaction import *
-from configuration.settings import *
+from modules.kinetic_eq import *
+from config.settings import *
 from model.coefficients import Psat, rho_H2O
 
 

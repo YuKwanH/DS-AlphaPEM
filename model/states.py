@@ -1,6 +1,6 @@
 
 # Importing constants' value and functions
-from configuration.settings import *
+from config.settings import *
 from model.coefficients import *
 from scipy import stats
 

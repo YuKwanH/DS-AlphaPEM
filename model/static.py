@@ -1,5 +1,5 @@
-from configuration.initialize import *
-from configuration.settings import *
+from config.initialize import *
+from config.settings import *
 from model.coefficients import *
 from scipy.optimize import fsolve, brentq
 
