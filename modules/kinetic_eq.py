@@ -1,5 +1,105 @@
 import numpy as np
-from config.settings import *
+from model.coefficients import *
+
+# _____________________________________________________Cell voltage_____________________________________________________
+
+def fdrop(x, operating_inputs, parameters):
+    """
+    x : dict
+        The dictionary containing the variables calculated by the solver.
+    operating_inputs : dict
+        The dictionary containing the operating inputs.
+    parameters : dict
+        The dictionary containing the parameters.
+    Returns
+    -------
+    float
+        The liquid water induced voltage drop function f_drop at time t.
+    """
+
+    # Extraction of the variables
+    s_ccl = x['s_ccl']
+    # Extraction of the operating inputs and the parameters
+    Pc_des = operating_inputs['Pc_des']
+    a_slim, b_slim, a_switch = parameters['a_slim'], parameters['b_slim'], parameters['a_switch']
+    # The liquid water induced voltage drop function f_drop
+    slim = a_slim * (Pc_des / 1e5) + b_slim
+    s_switch = a_switch * slim
+    return 0.5 * (1.0 - np.tanh((4 * s_ccl - 2 * slim - 2 * s_switch) / (slim - s_switch)))
+
+
+def Rproton(variables, parameters):
+
+    # Extraction of the operating inputs and the parameters
+    Tccl, Tacl = variables['Tccl'], variables['Tacl']
+    Hmem, Hcl, epsilon_mc, tau = parameters['Hmem'], parameters['Hcl'], parameters['epsilon_mc'], parameters['tau']
+    lambda_ccl, lambda_acl = variables['lambda_ccl'], variables['lambda_acl']
+
+    # Recovery of the already calculated variable values at each time step
+    Rmem = []
+    for i_mem in range(1, parameters['n_mem'] + 1):
+        lambda_mem = variables["lambda_mem_" + str(i_mem)]
+        Tmem = variables["Tmem_" + str(i_mem)]
+        # The proton resistance
+        # The proton resistance at the membrane: Rmem
+        if lambda_mem >= 1:
+            Rmem += [(Hmem/parameters['n_mem']) / ((0.5139 * lambda_mem - 0.326) * np.exp(1268 * (1 / 303.15 - 1 / Tmem)))]
+        else:
+            Rmem += [(Hmem/parameters['n_mem']) / (0.1879 * np.exp(1268 * (1 / 303.15 - 1 / Tmem)))]
+
+    #  The proton resistance at the cathode catalyst layer : Rccl
+    if lambda_ccl >= 1:
+        Rccl = Hcl / ((epsilon_mc ** tau) * (0.5139 * lambda_ccl - 0.326) * np.exp(1268 * (1 / 303.15 - 1 / Tccl)))
+    else:
+        Rccl = Hcl / ((epsilon_mc ** tau) * 0.1879 * np.exp(1268 * (1 / 303.15 - 1 / Tccl)))
+
+    # The proton resistance at the anode catalyst layer : Racl
+    if lambda_acl >= 1:
+        Racl = Hcl / ((epsilon_mc ** tau) * (0.5139 * lambda_acl - 0.326) * np.exp(1268 * (1 / 303.15 - 1 / Tacl)))
+    else:
+        Racl = Hcl / ((epsilon_mc ** tau) * 0.1879 * np.exp(1268 * (1 / 303.15 - 1 / Tacl)))
+
+    return Rmem, Rccl, Racl
+
+
+def Ueq(variables):
+    # Extraction of the variables
+    Tccl = variables['Tccl']
+    C_H2_acl, C_O2_ccl = variables['C_H2_acl'], variables['C_O2_ccl']
+    return (E0 - 8.5e-4 * (Tccl - 298.15) + R * Tccl / (2 * F) * (np.log(R * Tccl * C_H2_acl / Pref) + 0.5 * np.log(R * Tccl * C_O2_ccl / Pref)))
+
+
+def Ucell(variables, operating_inputs, parameters):
+    """This function calculates the cell voltage at each time step.
+
+    Parameters
+    ----------
+    variables : dict
+        The dictionary containing the variables calculated by the solver.
+    operating_inputs : dict
+        The dictionary containing the operating inputs.
+    parameters : dict
+        The dictionary containing the parameters.
+
+    Returns
+    -------
+    Ucell_t : list
+        The cell voltage at each time step.
+    """
+
+    # Extraction of the variables
+    t = variables['t']
+    eta_c_t, Re =  variables['eta_c'], variables['Re']
+    # Extraction of the operating inputs and the parameters
+    Ueq_t = Ueq(variables)
+    i_fc_t = operating_inputs['current_density'](t)
+    Rmem_t, Rccl_t, Racl_t = Rproton(variables, parameters)
+    Rp = Rmem_t # + Rccl_t + Racl_t
+        # The cell voltage OCV = 0.98 according to experimental data
+    Ucell_t = Ueq_t - (i_fc_t) * (Rp + Re) - eta_c_t
+    
+    return Ucell_t
+
 
 def PtOxideDissolution(theta, Ch):
     """

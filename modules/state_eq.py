@@ -81,9 +81,9 @@ def dxdt_MEM(dif, J_lambda_mem_acl, J_lambda_mem_ccl, J_O2_mem, J_H2_mem, J_lamb
 def dxdt_CCL(dif,sv, Jl_ccl_cgdl, Hcl, Sl_ccl, Jv_ccl_cgdl, S_sorp_ccl, Sv_ccl, J_O2_ccl_cgdl, J_O2_mem_ccl, Sp_ccl,
                                 S_O2_ccl, prd0, prd_ccl, kcdis, r_m, drdt, J_Pt2_mem, Hmem, n_mem, epsilon_mc, epsilon_cl, **kwargs):
 
-    M_Pt0 = 4 / 3 * np.pi * rho_Pt * np.trapezoid(y=prd0 * r_m ** 3, x=r_m)
-    dMdisdt = 4 * np.pi * rho_Pt * np.trapezoid(y=prd_ccl * r_m ** 2 * drdt, x=r_m)
-    dMcdisdt = 4 * np.pi * rho_Pt * np.trapezoid(y=prd_ccl * r_m ** 2 * kcdis, x=r_m)
+    #M_Pt0 = 4 / 3 * np.pi * rho_Pt * np.trapezoid(y=prd0 * r_m ** 3, x=r_m)
+    #dMdisdt = 4 * np.pi * rho_Pt * np.trapezoid(y=prd_ccl * r_m ** 2 * drdt, x=r_m)
+    #dMcdisdt = 4 * np.pi * rho_Pt * np.trapezoid(y=prd_ccl * r_m ** 2 * kcdis, x=r_m)
     dif['dC_Pt2_ccl / dt'] = 0#-3.33 / M_Pt * (dMdisdt - dMcdisdt) / M_Pt0 - J_Pt2_mem[-1] / (Hmem / n_mem)/ (1 - epsilon_mc)
     dif['ds_ccl / dt'] = 1 / (rho_H2O(sv["Tccl"]) * epsilon_cl) * (- Jl_ccl_cgdl / Hcl + M_H2O * Sl_ccl)
     dif['dC_v_ccl / dt'] = 1 / (epsilon_cl * (1 - sv['s_ccl'])) * (- Jv_ccl_cgdl / Hcl - S_sorp_ccl + Sv_ccl + Sp_ccl)

@@ -1,5 +1,5 @@
 from model.coefficients import *
-from model.states import *
+from model.inst_values import *
 from modules.state_eq import *
 
 class PEMFC_dyn:
@@ -62,7 +62,7 @@ class PEMFC_dyn:
         self.dt = 0
         self.dt_hist = []   
         self.loadprofile = []
-        self.elec_variables = {"Ueq": [], "Rmem": [], "Rccl": [], "Racl": [],
+        self.ec_kinetics = {"Ueq": [], "Rmem": [], "Rccl": [], "Racl": [],
                                            "eta_act": [], "eta_conc": [], "i_fc": [], "fdrop": []}
         self.x = initial_variable_values
         self.x_previous = 0
@@ -586,26 +586,24 @@ class PEMFC_dyn:
             prd_ccl = [last_solver_variables[f"S_N_ccl_{i + 1}"] for i in range(self.micro_parameters["n_group_ptParticle"])]
             theta_ccl =  [last_solver_variables[f"theta_ccl_{i + 1}"] for i in range(self.micro_parameters["n_group_ptParticle"])]
             #  recovery of Ucell.
-            Ueq_t, Rmem_t, Rccl_t, Racl_t = calculate_cell_voltage_intermediate(last_solver_variables, self.parameters)
-            eta_c_component = calculate_eta_c_intermediate_values(last_solver_variables, self.operating_inputs, self.parameters)
-            f_drop_t = eta_c_component["f_drop"]
+            Rmem_t, Rccl_t, Racl_t = Rproton(last_solver_variables, self.parameters)
+            Ueq_t = Ueq(last_solver_variables)
+            f_drop_t = fdrop(last_solver_variables, self.operating_inputs, self.parameters)
             if f_drop_t == 1:
-                self.elec_variables["eta_act"].append(self.variables["eta_c"][j])
-                self.elec_variables["eta_conc"].append(0)
+                self.ec_kinetics["eta_act"].append(self.variables["eta_c"][j])
+                self.ec_kinetics["eta_conc"].append(0)
             else:
                 eta_conc_t = self.variables["eta_c"][j] * (1 - f_drop_t)/f_drop_t
                 eta_act_t = self.variables["eta_c"][j] - eta_conc_t
-                self.elec_variables["eta_act"].append(eta_act_t)
-                self.elec_variables["eta_conc"].append(eta_conc_t)
-            self.elec_variables["i_fc"].append(i_fc)
-            self.elec_variables["fdrop"].append(f_drop_t)
-            self.elec_variables["Ueq"].append(Ueq_t)
-            self.elec_variables["Rmem"].append(Rmem_t)
-            self.elec_variables["Rccl"].append(Rccl_t)
-            self.elec_variables["Racl"].append(Racl_t)
-
-        self.variables["Ucell"].extend(calculate_cell_voltage(1, self.variables, self.operating_inputs,self.parameters))
-        
+                self.ec_kinetics["eta_act"].append(eta_act_t)
+                self.ec_kinetics["eta_conc"].append(eta_conc_t)
+            self.ec_kinetics["i_fc"].append(i_fc)
+            self.ec_kinetics["fdrop"].append(f_drop_t)
+            self.ec_kinetics["Ueq"].append(Ueq_t)
+            self.ec_kinetics["Rmem"].append(Rmem_t)
+            self.ec_kinetics["Rccl"].append(Rccl_t)
+            self.ec_kinetics["Racl"].append(Racl_t)
+            self.variables["Ucell"].append(Ucell(self.variables, self.operating_inputs, self.parameters))
 
     def calculate_flows(self,t, sv):
 
