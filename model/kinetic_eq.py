@@ -25,6 +25,7 @@ def fdrop(x, operating_inputs, parameters):
     # The liquid water induced voltage drop function f_drop
     slim = a_slim * (Pc_des / 1e5) + b_slim
     s_switch = a_switch * slim
+
     return 0.5 * (1.0 - np.tanh((4 * s_ccl - 2 * slim - 2 * s_switch) / (slim - s_switch)))
 
 
@@ -69,7 +70,7 @@ def Ueq(variables):
     return (E0 - 8.5e-4 * (Tccl - 298.15) + R * Tccl / (2 * F) * (np.log(R * Tccl * C_H2_acl / Pref) + 0.5 * np.log(R * Tccl * C_O2_ccl / Pref)))
 
 
-def Ucell(variables, operating_inputs, parameters):
+def Ucell(t, variables, operating_inputs, parameters):
     """This function calculates the cell voltage at each time step.
 
     Parameters
@@ -88,13 +89,13 @@ def Ucell(variables, operating_inputs, parameters):
     """
 
     # Extraction of the variables
-    t = variables['t']
-    eta_c_t, Re =  variables['eta_c'], variables['Re']
+    eta_c_t =  variables['eta_c']
+    Re = parameters['Re']
     # Extraction of the operating inputs and the parameters
     Ueq_t = Ueq(variables)
     i_fc_t = operating_inputs['current_density'](t)
     Rmem_t, Rccl_t, Racl_t = Rproton(variables, parameters)
-    Rp = Rmem_t # + Rccl_t + Racl_t
+    Rp = sum(Rmem_t) # + Rccl_t + Racl_t
         # The cell voltage OCV = 0.98 according to experimental data
     Ucell_t = Ueq_t - (i_fc_t) * (Rp + Re) - eta_c_t
     

@@ -5,7 +5,8 @@ from model.inst_values import *
 operating_inputs = {'current_density': lambda x: 0.1e4, 'Tfc': 343.15, 
                                     'Pa_des': 1.5e5, 'Pc_des': 1.5e5,
                                     'Phi_a_des': 0.0, 'Phi_c_des': 0.5,
-                                    'Sa': 1.2, 'Sc': 2.5,}
+                                    'Sa': 1.2, 'Sc': 2.5,
+                                    'Imin_aux': 10}
 
 accessible_physical_parameters = {'Aact': 31e-4, 'Hmem': 1.2e-5, 'Hgc': 8e-4, 'Wgc': 4e-4, 'Lgc': 1.287} #m
 
@@ -32,7 +33,7 @@ def init_x(operating_inputs, parameters):
     current_density, Tfc = operating_inputs['current_density'], operating_inputs['Tfc']
     Pa_des, Pc_des = operating_inputs['Pa_des'], operating_inputs['Pc_des']
     Phi_a_des, Phi_c_des = operating_inputs['Phi_a_des'], operating_inputs['Phi_c_des']
-    Hmem, kappa_co, i0_c_ref, = parameters['Hmem'], parameters['kappa_co'], parameters['i0_c_ref']
+    Hmem, i0_c_ref, = parameters['Hmem'], parameters['i0_c_ref']
     kappa_c = parameters['kappa_c']
     a_slim, b_slim, a_switch = parameters['a_slim'], parameters['b_slim'], parameters['a_switch']
     n_gdl,n_mem = parameters['n_gdl'], parameters['n_mem']

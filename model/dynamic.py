@@ -1,6 +1,6 @@
 from model.coefficients import *
 from model.inst_values import *
-from modules.state_eq import *
+from model.state_eq import *
 
 class PEMFC_dyn:
     
@@ -576,6 +576,7 @@ class PEMFC_dyn:
         # Recovery of more variables
 
         for j in range(len(sol.t)):  # For each time...
+            t = sol.t[j]
             # ... recovery of i_fc.
             i_fc = self.operating_inputs["current_density"](self.variables['t'][j])
             self.loadprofile.append(i_fc * self.parameters["Aact"])
@@ -603,7 +604,7 @@ class PEMFC_dyn:
             self.ec_kinetics["Rmem"].append(Rmem_t)
             self.ec_kinetics["Rccl"].append(Rccl_t)
             self.ec_kinetics["Racl"].append(Racl_t)
-            self.variables["Ucell"].append(Ucell(self.variables, self.operating_inputs, self.parameters))
+            self.variables["Ucell"].append(Ucell(t=t, variables=last_solver_variables, operating_inputs=self.operating_inputs, parameters=self.parameters))
 
     def calculate_flows(self,t, sv):
 

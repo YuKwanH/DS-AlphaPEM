@@ -1,4 +1,4 @@
-from config.settings import *
+import numpy as np
 
 # Physical constants
 N_A = 6.022e23 # /mol
@@ -54,6 +54,27 @@ Ksm_out = 1.0e-6  # kg.s-1.Pa-1. It is the supply manifold outlet orifice consta
 Kem_in = Ksm_out  # kg.s-1.Pa-1. It is the exhaust manifold inlet orifice constant.
 Kem_out = Ksm_in  # kg.s-1.Pa-1. It is the exhaust manifold outlet orifice constant.
 
+# Chemical constant
+k1 = 3e-9
+k1_ref = 1e-18
+k2 = 1e-13
+k2_ref = 1e-13
+k3 = 1e-15
+krdp = 1e-10
+k4 = 0
+k5 = 0
+kdet_ref = 0#1.3e-22
+rho_cc = 2.26
+Mcc = 12.01
+Ueq_4 = 0.2
+Vm_Pt = 9.09  # Molar volume of Pt cm3/mol
+M_Pt = 195.0849  # Molar mass of platinum (g/mol)
+R0 = 0.2e-7
+
+# Dynamic parameters
+Cpt2_ref = 1e-3
+rho_Pt = 21.45  # Density of platinum g/cm^3
+GAMMA_max = 2.18e-9 # GAMMA(strong assumption): The active site quantity in moles per platinum area (mole/cm^2)
 
 # Temperature dynamic
 k_GDL = 6.5 # [W/(m*K)] thermal conductivity of GDL

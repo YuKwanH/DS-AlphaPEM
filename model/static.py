@@ -14,9 +14,12 @@ class PEMFC_stat:
         Win_c, Wout_c = self.operating_inputs['Win_c'], self.operating_inputs['Wout_c'] 
         Win_a, Wout_a = self.operating_inputs['Win_a'], self.operating_inputs['Wout_a']
         Phi_a_des, Phi_c_des = self.operating_inputs['Phi_a_des'], self.operating_inputs['Phi_c_des']
-        Hcl, Hmem, Wgc, Hgc, Lgc = self.parameters['Hcl'], self.parameters['Hmem'], self.parameters['Wgc'], self.parameters['Hgc'], self.parameters['Lgc']
+        Pa_des, Pc_des = self.operating_inputs['Pa_des'], self.operating_inputs['Pc_des']
+        Hcl, Hmem, Hgdl, Wgc, Hgc, Lgc = self.parameters['Hcl'], self.parameters['Hmem'], self.parameters['Hgdl'], self.parameters['Wgc'], self.parameters['Hgc'], self.parameters['Lgc']
+        i0_c_ref, Eact, alpha_c, kappa_c = self.parameters['i0_c_ref'], self.parameters['Eact'], self.parameters['alpha_c'], self.parameters['kappa_c']
         epsilon_c, epsilon_cl, epsilon_gdl = self.parameters['epsilon_c'], self.parameters['epsilon_cl'], self.parameters['epsilon_gdl']
         epsilon_mc, tau = self.parameters['epsilon_mc'], self.parameters['tau']
+        a_slim, b_slim, a_switch = self.parameters['a_slim'], self.parameters['b_slim'], self.parameters['a_switch']
         # ------------------------------ Initial guess------------------------------ #
         Jnet = 0 
         Jw_ca = i / (2 * F) 
@@ -88,6 +91,8 @@ class PEMFC_stat:
         C_H2_acl = C_H2_agdl[0] + Hcl/Da_eff(np.mean(s_agdl),epsilon_cl,Pa_des, Tfc,epsilon_c,epsilon_cl) * JH2
         C_O2_ccl = C_O2_cgdl[0] + Hcl/Dc_eff(np.mean(s_cgdl),epsilon_cl,Pc_des, Tfc,epsilon_c,epsilon_cl) * JO2
         Ueq = (E0 - 8.5e-4 * (Tfc - 298.15) + R * Tfc / (2 * F) * (np.log(R * Tfc * C_H2_acl / Pref) + 0.5 * np.log(R * Tfc * C_O2_ccl / Pref)))
+        slim = a_slim * (Pc_des / 1e5) + b_slim
+        s_switch = a_switch * slim
         f_drop = 0.5 * (1.0 - np.tanh((4 * s_cgdl[0] - 2 * slim - 2 * s_switch) / (slim - s_switch)))
         i0_c = i0_c_ref * np.exp(-Eact / R * (1 / Tfc - 1 / 353))
         eta_c = (1 / f_drop * R * Tfc / (alpha_c * F) * np.log((i) / i0_c * (C_O2ref / C_O2_ccl) ** kappa_c))
