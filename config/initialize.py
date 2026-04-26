@@ -94,7 +94,7 @@ def init_x(operating_inputs, parameters):
     theta_CCL = np.zeros(computing_parameters['n_group_pt'])
 
     # Gathering of the variables initial value into one list
-    return  ([C_H2_agc] + [C_H2_agdl] * n_gdl + [C_H2_acl] + C_H2_mem_init +
+    x0 = ([C_H2_agc] + [C_H2_agdl] * n_gdl + [C_H2_acl] + C_H2_mem_init +
                     C_O2_mem_init + [C_O2_ccl] + [C_O2_cgdl] * n_gdl + [C_O2_cgc] + [C_N2] +
                     [C_v_agc] + [C_v_agdl] * n_gdl + [C_v_acl, C_v_ccl+1] + [C_v_cgdl] * n_gdl + [C_v_cgc] +
                     [0] + s_agdl_init + [0, s_ccl_init] + s_cgdl_init + [s_boundary] +
@@ -103,3 +103,4 @@ def init_x(operating_inputs, parameters):
                     [Wcp, Wa_inj, Wc_inj, Abp_a, Abp_c] + C_Pt_mem_init +
                     [C_Pt2_ccl, Hmem] + prd_init.tolist() + theta_CCL.tolist() +
                     [operating_inputs["Tfc"]] * 32)
+    return x0

@@ -1,8 +1,8 @@
-
+import scipy.stats as stats
+from scipy.integrate import trapezoid
 # Importing constants' value and functions
 from model.coefficients import *
 from model.kinetic_eq import *
-from scipy import stats
 
 # ____________________________________________Differential equations modules____________________________________________
 def dif_eq_int_values(t, x, operating_inputs, parameters):
@@ -40,20 +40,29 @@ def dif_eq_int_values(t, x, operating_inputs, parameters):
     Maem = Phi_aem * Psat(Tfc) / Paem * M_H2O + (1 - Phi_aem * Psat(Tfc) / Paem) * M_H2
     Mcsm = Phi_csm * Psat(Tfc) / Pcsm * M_H2O + yO2_ext * (1 - Phi_csm * Psat(Tfc) / Pcsm) * M_O2 + (1 - yO2_ext) * (1 - Phi_csm * Psat(Tfc) / Pcsm) * M_N2
     Mcem = Phi_cem * Psat(Tfc) / Pcem * M_H2O + y_cgc * (1 - Phi_cem * Psat(Tfc) / Pcem) * M_O2 + (1 - y_cgc) * (1 - Phi_cem * Psat(Tfc) / Pcem) * M_N2
-    Mext = Phi_ext * Psat(Text) / Pext * M_H2O + yO2_ext * (1 - Phi_ext * Psat(Text) / Pext) * M_O2 +  (1 - yO2_ext) * (1 - Phi_ext * Psat(Text) / Pext) * M_N2
+    Mext = (Phi_ext * Psat(Text) / Pext * M_H2O + 
+            yO2_ext * (1 - Phi_ext * Psat(Text) / Pext) * M_O2 + 
+            (1 - yO2_ext) * (1 - Phi_ext * Psat(Text) / Pext) * M_N2)
     Magc = C_v_agc * R * Tfc / Pagc * M_H2O +  C_H2_agc * R * Tfc / Pagc * M_H2
-    Mcgc = Phi_cgc * Psat(Tfc) / Pcgc * M_H2O +  y_cgc * (1 - Phi_cgc * Psat(Tfc) / Pcgc) * M_O2 + (1 - y_cgc) * (1 - Phi_cgc * Psat(Tfc) / Pcgc) * M_N2
+    Mcgc = (Phi_cgc * Psat(Tfc) / Pcgc * M_H2O + 
+            y_cgc * (1 - Phi_cgc * Psat(Tfc) / Pcgc) * M_O2 + 
+            (1 - y_cgc) * (1 - Phi_cgc * Psat(Tfc) / Pcgc) * M_N2)
     # Physical quantities in the auxiliary system
     # Pressure ratios
     Pr_aem = (Pext / Paem)
     Pr_cem = (Pext / Pcem)
     # Oxygen ratio in dry air
-    y_cem = (Pcem - Phi_cem * Psat(Tfc) - C_N2 * R * Tfc) / (Pcem - Phi_cem * Psat(Tfc))
+    y_cem = ((Pcem - Phi_cem * Psat(Tfc) - C_N2 * R * Tfc) / 
+             (Pcem - Phi_cem * Psat(Tfc)))
     # Molar masses
     Maem = Phi_aem * Psat(Tfc) / Paem * M_H2O + (1 - Phi_aem * Psat(Tfc) / Paem) * M_H2
     Masm = Phi_asm * Psat(Tfc) / Pasm * M_H2O + (1 - Phi_asm * Psat(Tfc) / Pasm) * M_H2
-    Mcem = Phi_cem * Psat(Tfc) / Pcem * M_H2O + y_cem * (1 - Phi_cem * Psat(Tfc) / Pcem) * M_O2 + (1 - y_cem) * (1 - Phi_cem * Psat(Tfc) / Pcem) * M_N2
-    Mcsm = Phi_csm * Psat(Tfc) / Pcsm * M_H2O + yO2_ext * (1 - Phi_csm * Psat(Tfc) / Pcsm) * M_O2 + (1 - yO2_ext) * (1 - Phi_csm * Psat(Tfc) / Pcsm) * M_N2
+    Mcem = (Phi_cem * Psat(Tfc) / Pcem * M_H2O + 
+            y_cem * (1 - Phi_cem * Psat(Tfc) / Pcem) * M_O2 + 
+            (1 - y_cem) * (1 - Phi_cem * Psat(Tfc) / Pcem) * M_N2)
+    Mcsm = (Phi_csm * Psat(Tfc) / Pcsm * M_H2O + 
+            yO2_ext * (1 - Phi_csm * Psat(Tfc) / Pcsm) * M_O2 + 
+            (1 - yO2_ext) * (1 - Phi_csm * Psat(Tfc) / Pcsm) * M_N2)
     
     # eletrochemical kinetics
     i_fc = operating_inputs['current_density'](t)
@@ -63,7 +72,8 @@ def dif_eq_int_values(t, x, operating_inputs, parameters):
     for i in range(n_group_pt):
         PRD[i] = x[f"S_N_ccl_{i + 1}"]
         theta_ccl[i] = x[f'theta_ccl_{i + 1}']
-    ECSA = getECSA(PRD, radius= r_m)/getECSA(initPRD(resolution=n_group_pt), radius= r_m)
+    ECSA = (getECSA(PRD, radius= r_m) / 
+            getECSA(initPRD(resolution=n_group_pt), radius= r_m))
     # CCL kinetic
     C_Proton = Cproton_CCL(lambda_w=x["lambda_ccl"])
     U = Ucell(t=t, variables=x, operating_inputs=operating_inputs, parameters=parameters)
@@ -74,7 +84,8 @@ def dif_eq_int_values(t, x, operating_inputs, parameters):
     
     # Setpoints 
     # The desired air compressor flow rate Wcp_des (kg.s-1)
-    Wcp_des = n_cell * Mext * Pext / (Pext - Phi_ext * Psat(Text)) *  1 / yO2_ext * Sc * (iload) / (4 * F) * Aact
+    Wcp_des = (n_cell * Mext * Pext / (Pext - Phi_ext * Psat(Text)) * 
+               1 / yO2_ext * Sc * (iload) / (4 * F) * Aact)
     Wrd = n_cell * M_H2 * Sa * (iload) / (2 * F) * Aact
     Wa_inj_des = M_H2O * Phi_a_des * Psat(Tfc) / Prd * (Wrd / M_H2)
     # The desired humidifier flow rate at the cathode side Wc_inj_des (kg.s-1)
@@ -82,13 +93,14 @@ def dif_eq_int_values(t, x, operating_inputs, parameters):
     Wc_v_des = M_H2O * Phi_c_des * Psat(Tfc) / Pcp * (Wcp / Mext)  # Desired vapor flow rate
     Wc_inj_des = Wc_v_des - Wv_hum_in  # Desired humidifier flow rate
 
-    return {"Pagc": Pagc, "Pcgc": Pcgc, "Pacl": Pacl, "Pagdl": Pagdl, "Pccl": Pccl, "Pcgdl": Pcgdl,
+    result = {"Pagc": Pagc, "Pcgc": Pcgc, "Pacl": Pacl, "Pagdl": Pagdl, "Pccl": Pccl, "Pcgdl": Pcgdl,
                  "Prd": Prd, "Pcp": Pcp, "Pr_aem": Pr_aem, "Pr_cem": Pr_cem,
                  "Mext": Mext, "Masm": Masm, "Maem": Maem, "Mcsm": Mcsm, "Mcem": Mcem, "Magc": Magc, "Mcgc": Mcgc,
                  "Phi_agc": Phi_agc, "Phi_cgc": Phi_cgc,
                  "Wcp_des": Wcp_des, "Wa_inj_des": Wa_inj_des, "Wc_inj_des": Wc_inj_des,
                  "y_cgc": y_cgc, "y_cem": y_cem, "f_drop": fd, 'i_fc': i_fc, 
-                 'ECSA':ECSA, 'kox': kox, 'kcdis': kcdis, 'kdet': kdet, 'kdis': kdis, 'prd': PRD, 'theta': theta_ccl}
+                 'ECSA': ECSA, 'kox': kox, 'kcdis': kcdis, 'kdet': kdet, 'kdis': kdis, 'prd': PRD, 'theta': theta_ccl}
+    return result
 
 
 def calculate_flows(t, x ,operating_inputs, parameters, Pagc, Pcgc, Pacl,Pagdl, Pccl, Pcgdl,
@@ -438,7 +450,7 @@ def initPRD(resolution=100, rmin=1e-8, rmax=1e-6, std=0.549, mu=0.538):
 
 
 def getECSA(prd, radius):
-    return 4 * np.pi * np.trapezoid(y=(radius ** 2) * prd, x=radius)
+    return 4 * np.pi * trapezoid(y=(radius ** 2) * prd, x=radius)
 
 # ______________________________________Function which gives the integration event______________________________________
 def event_negative(t, y, operating_inputs, parameters, solver_variable_names, control_variables):

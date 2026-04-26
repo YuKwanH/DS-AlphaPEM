@@ -1,5 +1,6 @@
 from model.kinetic_eq import *
 from model.coefficients import Psat, rho_H2O
+from scipy.integrate import trapezoid
 
 
 def dxdt_AGC(dif,Jv_a_in, Jv_a_out, Lgc, Jv_agc_agdl, Hgc, J_H2_in, J_H2_out, J_H2_agc_agdl, **kwargs):
@@ -183,7 +184,7 @@ def dxdt_CP(dif, Wcp_des, Wa_inj_des, Wc_inj_des, Wcp, Wa_inj, Wc_inj, **kwargs)
     dif['dWa_inj / dt'] = (Wa_inj_des - Wa_inj) / tau_hum  # Estimation at the first order.
     dif['dWc_inj / dt'] = (Wc_inj_des - Wc_inj) / tau_hum  # Estimation at the first order.
 
-def dxdt_TH(dif,Pagc, Pcgc, Abp_a, Abp_c, Tfc, Pa_des, Pc_des, **kwargs):
+def dxdt_TH(dif, Pagc, Pcgc, Abp_a, Abp_c, Tfc, Pa_des, Pc_des, **kwargs):
     
     # Calculation of the pressure derivative inside the gas channels
     dPagcdt = (dif['dC_v_agc / dt'] + dif['dC_H2_agc / dt']) * R * Tfc
@@ -204,17 +205,21 @@ def dxdt_TH(dif,Pagc, Pcgc, Abp_a, Abp_c, Tfc, Pa_des, Pc_des, **kwargs):
         dif['dAbp_c / dt'] = 0
 
 
-def dxdt_PRD(dif, prd, theta, kdis, kox, kcdis, kdet, r_m, prd0, C_Pt2_ccl, J_Pt2_mem, **kwargs):
+def dxdt_PRD(dif, Hmem, n_mem, epsilon_mc,
+                       prd, theta, kdis, kox, kcdis, kdet, 
+                       r_m, prd0, C_Pt2_ccl, J_Pt2_mem, **kwargs):
     """
     Urchaga et al 2015 dr/dt = VmKrdpCpt,avg*exp(-R0/r) - VmKdisCpt,avg*exp(-R0/r)
     """
     drdt = Vm_Pt * krdp * C_Pt2_ccl * np.exp(R0 / r_m) - Vm_Pt * (kdis + kox) * Cpt2_ref * np.exp(R0 / r_m)
-    M_Pt0 = 4 / 3 * np.pi * rho_Pt * np.trapezoid(y=prd0 * r_m ** 3, x=r_m)
-    dMdisdt = 4 * np.pi * rho_Pt * np.trapezoid(y=prd * r_m ** 2 * drdt, x=r_m)
-    dMcdisdt = 4 * np.pi * rho_Pt * np.trapezoid(y=prd * r_m ** 2 * kcdis, x=r_m)
-    dif['dC_Pt2_ccl / dt'] = 0#-3.33 / M_Pt * (dMdisdt - dMcdisdt) / M_Pt0 - J_Pt2_mem[-1] / (Hmem / n_mem)/ (1 - epsilon_mc)
+    M_Pt0 = 4 / 3 * np.pi * rho_Pt * trapezoid(y=prd0 * r_m ** 3, x=r_m)
+    dMdisdt = 4 * np.pi * rho_Pt * trapezoid(y=prd * r_m ** 2 * drdt, x=r_m)
+    dMcdisdt = 4 * np.pi * rho_Pt * trapezoid(y=prd * r_m ** 2 * kcdis, x=r_m)
+    dif['dC_Pt2_ccl / dt'] = -3.33 / M_Pt * (dMdisdt - dMcdisdt) / M_Pt0 - J_Pt2_mem[-1] / (Hmem / n_mem)/ (1 - epsilon_mc)
     dfdt = -np.gradient(prd * drdt, r_m) - kdet * prd
     dthetadt = (((kox - kcdis) / GAMMA_max) - (2 * theta / r_m) * drdt)
     for i in range(1, len(r_m)+1):
-        dif[f"dS_N_ccl_{i}"+' / dt'] = 0 #dfdt[i]
-        dif[f"dtheta_ccl_{i}"+' / dt'] = 0 # dthetadt[i]
+        dif[f"dS_N_ccl_{i}"+' / dt'] = dfdt[i - 1]
+        dif[f"dtheta_ccl_{i}"+' / dt'] = dthetadt[i - 1]
+
+        
