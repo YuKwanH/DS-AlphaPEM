@@ -8,9 +8,14 @@ class PEMFC:
         def __init__(self, param, operating_inputs, 
                              variable_names, flux_names):
 
-                self.parameters = param
-                self.variable_names = variable_names
-                self.flux_names = flux_names
+                # Defensive copies: __init__ mutates `variable_names` (pop/slice insert
+                # for discretization) and writes new keys ('r_m', 'prd0') into `parameters`.
+                # Without copies, those mutations leak back to the caller's imported
+                # `solver_variable_names` / `parameters`, breaking any subsequent
+                # PEMFC(...) call ("'C_v_agdl' is not in list").
+                self.parameters = dict(param)
+                self.variable_names = list(variable_names)
+                self.flux_names = list(flux_names)
                 self.operating_inputs = operating_inputs
 
                 # GDL nodes name discretization
