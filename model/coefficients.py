@@ -137,12 +137,18 @@ def Dw(lambdaa, T):
 def gamma_sorp(C_v, s, lambdaa, T, Hcl, Kshape):
     # phase transfer rate for water sorption/desorption
     fv = (lambdaa * M_H2O / rho_H2O(T)) / (M_eq / rho_mem + lambdaa * M_H2O / rho_H2O(T))
-    return (1.14e-5 * fv) / Hcl * np.exp(2416 * (1 / 303 - 1 / T)) if lambda_eq(C_v, s, T, Kshape) >= lambdaa else (4.59e-5 * fv) / Hcl * np.exp(2416 * (1 / 303 - 1 / T))
+    if lambda_eq(C_v, s, T, Kshape) >= lambdaa:
+        return (1.14e-5 * fv) / Hcl * np.exp(2416 * (1 / 303 - 1 / T))
+    else:
+        return (4.59e-5 * fv) / Hcl * np.exp(2416 * (1 / 303 - 1 / T))
     
     
 def Svl(s, C_v, Ctot, epsilon, T, gamma_cond, gamma_evap):
     # phase transfer rate of water condensation or evaporation
-    return gamma_cond * epsilon * (1 - s) * (C_v / Ctot) * (C_v - C_v_sat(T)) if C_v > C_v_sat(T) else -gamma_evap * epsilon * s * rho_H2O(T) / M_H2O * R * T * (C_v_sat(T) - C_v)
+    if C_v > C_v_sat(T):
+        return gamma_cond * epsilon * (1 - s) * (C_v / Ctot) * (C_v - C_v_sat(T))
+    else:
+        return -gamma_evap * epsilon * s * rho_H2O(T) / M_H2O * R * T * (C_v_sat(T) - C_v)
 
 
 def K0(epsilon, epsilon_c, epsilon_gdl):
