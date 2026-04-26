@@ -67,6 +67,7 @@ def Ueq(variables):
     # Extraction of the variables
     Tccl = variables['Tccl']
     C_H2_acl, C_O2_ccl = variables['C_H2_acl'], variables['C_O2_ccl']
+
     return (E0 - 8.5e-4 * (Tccl - 298.15) + R * Tccl / (2 * F) * (np.log(R * Tccl * C_H2_acl / Pref) + 0.5 * np.log(R * Tccl * C_O2_ccl / Pref)))
 
 
@@ -89,17 +90,32 @@ def Ucell(t, variables, operating_inputs, parameters):
     """
 
     # Extraction of the variables
-    eta_c_t =  variables['eta_c']
-    Re = parameters['Re']
+    Tccl, C_O2_ccl = variables['Tccl'], variables['C_O2_ccl']
+    i_fc = operating_inputs['current_density'](t)
+    f_drop = fdrop(variables, operating_inputs, parameters)
+    Re, i0_c_ref, kappa_c = parameters['Re'], parameters['i0_c_ref'], parameters['kappa_c']
     # Extraction of the operating inputs and the parameters
     Ueq_t = Ueq(variables)
     i_fc_t = operating_inputs['current_density'](t)
+    eta_c = (1 / f_drop * R * Tccl / (alpha_c * F) * np.log((i_fc) / i0_c_ref * (C_O2ref / C_O2_ccl) ** kappa_c) * np.exp(Eact / R * (1 / 353 - 1 / Tccl)))
     Rmem_t, Rccl_t, Racl_t = Rproton(variables, parameters)
-    Rp = sum(Rmem_t) # + Rccl_t + Racl_t
+    Rp = sum(Rmem_t)  + Rccl_t + Racl_t
         # The cell voltage OCV = 0.98 according to experimental data
-    Ucell_t = Ueq_t - (i_fc_t) * (Rp + Re) - eta_c_t
+    Ucell_t = Ueq_t - (i_fc_t) * (Rp + Re) - eta_c
     
     return Ucell_t
+
+def eta_ccl(variables, operating_inputs, parameters):
+
+    # Extraction of the variables
+    Tccl, C_O2_ccl = variables['Tccl'], variables['C_O2_ccl']
+    i_fc = operating_inputs['current_density'](0)
+    f_drop = fdrop(variables, operating_inputs, parameters)
+    i0_c_ref, kappa_c = parameters['i0_c_ref'], parameters['kappa_c']
+    # Extraction of the operating inputs and the parameters
+    eta_c_t = (1 / f_drop * R * Tccl / (alpha_c * F) * np.log((i_fc) / i0_c_ref * (C_O2ref / C_O2_ccl) ** kappa_c) * np.exp(Eact / R * (1 / 353 - 1 / Tccl)))
+    
+    return eta_c_t
 
 
 def PtOxideDissolution(theta, Ch):
@@ -110,7 +126,7 @@ def PtOxideDissolution(theta, Ch):
     return k3 * theta * Ch ** 2
 
 
-def PtDissolution(Ucell, T_fc, Cpt2, theta):
+def PtDissolution(Ucell, T, Cpt2, theta):
     """
     Rate of platinum dissolution cm/s
     Initially developed by Darling and Meyers: "Kinetic model of platinum dissolution in PEMFCs"
@@ -121,12 +137,12 @@ def PtDissolution(Ucell, T_fc, Cpt2, theta):
     Ueq_1 = 1.15  # Standard equilibrium potential Ueq_1
     n = 2  # Electron transferred
     # Modelled as Butler-Volmer equation
-    Rf = np.exp((alpha_1 * F * n) / (R * T_fc) * (Ucell - Ueq_1))  # Forward
-    Rb = Cpt2 / Cpt2_ref * np.exp((-(1 - alpha_1) * F * n) / (R * T_fc) * (Ucell - Ueq_1))  # Reverse
+    Rf = np.exp((alpha_1 * F * n) / (R * T) * (Ucell - Ueq_1))  # Forward
+    Rb = Cpt2 / Cpt2_ref * np.exp((-(1 - alpha_1) * F * n) / (R * T) * (Ucell - Ueq_1))  # Reverse
     return k1 * (1 - theta) * Rf - k1_ref * Rb
 
 
-def PtOxidation(Ucell, T_fc, Ch, theta):
+def PtOxidation(Ucell, T, Ch, theta):
     """
     rate of platinum oxidation
     Initially developed by Harrington then enhanced by Darling "Kinetic model of platinum dissolution in PEMFCs"
@@ -142,26 +158,27 @@ def PtOxidation(Ucell, T_fc, Ch, theta):
     omega = 27e3
     Ch_ref = 1e-3
 
-    Rf = (k2 * np.exp(-omega * theta / (R * T_fc)) *
-          np.exp((alpha_2 * F * n) / (R * T_fc) * (Ucell - Ueq_2)))
+    Rf = (k2 * np.exp(-omega * theta / (R * T)) *
+          np.exp((alpha_2 * F * n) / (R * T) * (Ucell - Ueq_2)))
     Rb = (k2_ref * theta * (Ch / Ch_ref) ** 2 *
-          np.exp((-alpha_2 * F * n) / (R * T_fc) * (Ucell - Ueq_2)))
+          np.exp((-alpha_2 * F * n) / (R * T) * (Ucell - Ueq_2)))
 
     return Rf - Rb
 
 
-def PtDetachment(Ucell, T_fc, r):
+def PtDetachment(Ucell, T, r):
     """
 
     :param Ucell:
-    :param T_fc:
+    :param T: Temperature
+    :param r: Radius
     :return:
     """
     n = 2
-    return kdet_ref * Mcc / rho_cc * np.exp((0.5 * F * n) / (R * T_fc) * (Ucell - Ueq_4)) / r
+    return kdet_ref * Mcc / rho_cc * np.exp((0.5 * F * n) / (R * T) * (Ucell - Ueq_4)) / r
 
 
-def flourideReleaseRate(MT, U, Tfc, PO2_ca):
+def flourideReleaseRate(MT, U, Tmem, PO2_ca):
     """
 
     :return:
@@ -174,4 +191,4 @@ def flourideReleaseRate(MT, U, Tfc, PO2_ca):
     T0 = 273.15 + 95
     P0 = 1e5
 
-    return A_1 * (PO2_ca/P0) * (e_M0 / MT) * np.exp(alpha_eq * F * U / (R * Tfc)) * np.exp(-E_a / R * (1 / Tfc - 1 / T0))
+    return A_1 * (PO2_ca/P0) * (e_M0 / MT) * np.exp(alpha_eq * F * U / (R * Tmem)) * np.exp(-E_a / R * (1 / Tmem - 1 / T0))

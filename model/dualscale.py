@@ -2,6 +2,7 @@ from model.coefficients import *
 from model.inst_values import *
 from model.state_eq import *
 from model.kinetic_eq import *
+from scipy.sparse import lil_matrix, csr_matrix
 
 class PEMFC:
 
@@ -22,7 +23,7 @@ class PEMFC:
                 discretized_region = ['C_v_agdl', 'C_v_cgdl', 's_agdl', 's_cgdl', 'C_H2_agdl', 'C_O2_cgdl', "Tcgdl", "Tagdl"]
                 for variable in discretized_region:
                         index = self.variable_names.index(variable)
-                # Delete the previous points
+                        # Delete the previous points
                         self.variable_names.pop(index)
                         # Increase the number of points
                         self.variable_names[index:index] = [f'{variable}_{i}' for i in range(1, self.parameters['n_gdl'] + 1)]
@@ -70,22 +71,22 @@ class PEMFC:
                 massflow = calculate_flows(t, states, self.operating_inputs, self.parameters, **inst_states)
 
                 # Merge once per dxdt call so each dxdt_X site unpacks one dict.
-                common = {**inst_states, **self.parameters, **massflow}
-                common_op = {**common, **self.operating_inputs}
+                all_inst_states = {**inst_states, **self.parameters, **massflow}
+                all_inst_values = {**all_inst_states, **self.operating_inputs}
 
-                dxdt_AGC(dif, **common)
-                dxdt_CGC(dif, **common)
-                dxdt_AGDL(dif, states, **common)
-                dxdt_CGDL(dif, states, **common)
-                dxdt_ACL(dif, states, **common)
-                dxdt_CCL(dif, states, **common)
-                dxdt_MEM(dif, **common)
-                dxdt_CP(dif, **states, **common)
-                dxdt_Manifold(dif, **common_op)
-                dxdt_TH(dif, **states, **common_op)
-                dxdt_U(dif, **states, **common)
-                dxdt_N2(dif, **common)
-                dxdt_PRD(dif=dif, **states, **common)
+                dxdt_AGC(dif, **all_inst_values)
+                dxdt_CGC(dif, **all_inst_values)
+                dxdt_AGDL(dif, states, **all_inst_values)
+                dxdt_CGDL(dif, states, **all_inst_values)
+                dxdt_ACL(dif, states, **all_inst_values)
+                dxdt_CCL(dif, states, **all_inst_values)
+                dxdt_MEM(dif, states, **all_inst_values)
+                dxdt_CP(dif, **states, **all_inst_values)
+                dxdt_Manifold(dif, **all_inst_values)
+                dxdt_TH(dif, **states, **all_inst_values)
+                dxdt_U(dif, **states, **all_inst_values)
+                dxdt_N2(dif, **all_inst_values)
+                dxdt_PRD(dif=dif, **states, **all_inst_values)
 
                 return np.fromiter(dif.values(), dtype=float, count=self._n_states)
 
@@ -97,7 +98,6 @@ class PEMFC:
                 diagonal is forced on. Conservative: a False entry only forms if
                 NO probe detected a change.
                 """
-                from scipy.sparse import lil_matrix, csr_matrix
 
                 n = len(x0)
                 sparsity = lil_matrix((n, n), dtype=np.int8)
@@ -147,13 +147,14 @@ class PEMFC:
                         #  recovery of Ucell.
                         Rmem_t, Rccl_t, Racl_t = Rproton(last_solver_variables, self.parameters)
                         Ueq_t = Ueq(last_solver_variables)
+                        eta_c_t = last_solver_variables["eta_c"] #eta_ccl(last_solver_variables, self.operating_inputs, self.parameters)
                         f_drop_t = fdrop(last_solver_variables, self.operating_inputs, self.parameters)
                         if f_drop_t == 1:
-                                self.echem_traj["eta_act"].append(self.variables["eta_c"][j])
+                                self.echem_traj["eta_act"].append(eta_c_t)
                                 self.echem_traj["eta_conc"].append(0)
                         else:
-                                eta_conc_t = self.variables["eta_c"][j] * (1 - f_drop_t)/f_drop_t
-                                eta_act_t = self.variables["eta_c"][j] - eta_conc_t
+                                eta_conc_t = eta_c_t * (1 - f_drop_t)/f_drop_t
+                                eta_act_t = eta_c_t - eta_conc_t
                                 self.echem_traj["eta_act"].append(eta_act_t)
                                 self.echem_traj["eta_conc"].append(eta_conc_t)
                         self.echem_traj["i_fc"].append(i_fc)

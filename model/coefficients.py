@@ -41,26 +41,26 @@ Eact = 73.2e3  # J.mol-1. It is the activation energy.
 #   Physical parameters
 n_cell = 22 # . It is the number of cell in the stack.
 # Auxiliary system parameters
-Vsm = 5e-6  # m3. It is the supply manifold volume.
-Vem = 5e-6  # m3. It is the exhaust manifold volume.
+Vsm = 1e-5  # m3. It is the supply manifold volume.
+Vem = 1e-5  # m3. It is the exhaust manifold volume.
 A_T = 1.18e-3  # m². It is the exhaust manifold throttle area
-tau_cp = 10  # s. It is the air compressor time constant.
-tau_hum = 15  # s. It is the humidifier time constant.
-Kp = 1e-8  # m².s-1.Pa-1. It is the proportional constant of the PD controller at the back pressure valve.
-Kd = 2e-8  # m².s-1.Pa-1. It is the derivative constant of the PD controller at the back pressure valve.
+tau_cp = 1  # s. It is the air compressor time constant.
+tau_hum = 5  # s. It is the humidifier time constant.
+Kp = 1e-6  # m².s-1.Pa-1. It is the proportional constant of the PD controller at the back pressure valve.
+Kd = 2e-7  # m².s-1.Pa-1. It is the derivative constant of the PD controller at the back pressure valve.
 C_D = 5e-2  # . It is the throttle discharge coefficient.
-Ksm_in = 1.0e-5  # kg.s-1.Pa-1. It is the supply manifold inlet orifice constant.
-Ksm_out = 1.0e-6  # kg.s-1.Pa-1. It is the supply manifold outlet orifice constant.
+Ksm_in = 1.0e-9  # kg.s-1.Pa-1. It is the supply manifold inlet orifice constant.
+Ksm_out = 1.0e-8  # kg.s-1.Pa-1. It is the supply manifold outlet orifice constant.
 Kem_in = Ksm_out  # kg.s-1.Pa-1. It is the exhaust manifold inlet orifice constant.
 Kem_out = Ksm_in  # kg.s-1.Pa-1. It is the exhaust manifold outlet orifice constant.
 
 # Chemical constant
-k1 = 3e-9
-k1_ref = 1e-18
-k2 = 1e-13
-k2_ref = 1e-13
-k3 = 1e-15
-krdp = 1e-10
+k1 = 3e-18
+k1_ref = 1e-22
+k2 = 1e-18
+k2_ref = 1e-18
+k3 = 1e-18
+krdp = 1e-16
 k4 = 0
 k5 = 0
 kdet_ref = 0#1.3e-22

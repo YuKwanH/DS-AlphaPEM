@@ -16,7 +16,7 @@ class PEMFC_stat:
         Phi_a_des, Phi_c_des = self.operating_inputs['Phi_a_des'], self.operating_inputs['Phi_c_des']
         Pa_des, Pc_des = self.operating_inputs['Pa_des'], self.operating_inputs['Pc_des']
         Hcl, Hmem, Hgdl, Wgc, Hgc, Lgc = self.parameters['Hcl'], self.parameters['Hmem'], self.parameters['Hgdl'], self.parameters['Wgc'], self.parameters['Hgc'], self.parameters['Lgc']
-        i0_c_ref, Eact, alpha_c, kappa_c = self.parameters['i0_c_ref'], self.parameters['Eact'], self.parameters['alpha_c'], self.parameters['kappa_c']
+        i0_c_ref, kappa_c = self.parameters['i0_c_ref'], self.parameters['kappa_c']
         epsilon_c, epsilon_cl, epsilon_gdl = self.parameters['epsilon_c'], self.parameters['epsilon_cl'], self.parameters['epsilon_gdl']
         epsilon_mc, tau = self.parameters['epsilon_mc'], self.parameters['tau']
         a_slim, b_slim, a_switch = self.parameters['a_slim'], self.parameters['b_slim'], self.parameters['a_switch']

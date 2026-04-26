@@ -2,7 +2,7 @@ from model.coefficients import *
 from model.inst_values import *
 
 
-operating_inputs = {'current_density': lambda x: 0.1e4, 'Tfc': 343.15, 
+operating_inputs = {'current_density': lambda x: 0.1e4, 'Tfc': 333.15, 
                                     'Pa_des': 1.5e5, 'Pc_des': 1.5e5,
                                     'Phi_a_des': 0.0, 'Phi_c_des': 0.5,
                                     'Sa': 1.2, 'Sc': 2.5,
@@ -14,12 +14,12 @@ current_parameters = {'t_step': (0, 3600, 100, 1.5), 'i_step': (0.5e4, 1.5e4),
                                         'delta_pola': (30, 30, 0.1e4, 60), 'i_max_pola': 1.65e4, # 50A/30e-4
                                         'i_EIS': 1.0e4, 'ratio_EIS': 0.05, 't_EIS': 15, 'f_EIS': (-3, 5, 90, 50)}
 
-undetermined_physical_parameters = {'epsilon_gdl': 0.7, "epsilon_cl": 0.15,
+undetermined_physical_parameters = {'epsilon_gdl': 0.55, "epsilon_cl": 0.3,
                                                                 'epsilon_mc': 0.399,'epsilon_c': 0.299, 
-                                                                'e': 4, 'kappa_co': 37.2, 'Re': 2.2e-7, 'tau': 1.01, 
+                                                                'e': 3, 'kappa_co': 37.2, 'Re': 2.2e-7, 'tau': 1.01, 
                                                                 'i0_c_ref': 10.6, 'kappa_c': 0.1, 'C_scl': 1e8, 
-                                                                'a_slim': 0.01, 'b_slim': 0.25, 'a_switch': 0.13,
-                                                                "Hcl": 1e-5, "Hgdl": 2.e-4}
+                                                                'a_slim': 0.4, 'b_slim': 0.5, 'a_switch': 0.5,
+                                                                "Hcl": 1e-5, "Hgdl": 3.e-4}
 
 computing_parameters = {'max_step': 0.1, 'n_gdl': 10,'n_mem':10,'n_group_pt':10,
                                             't_purge': (2.4, 15), 'type_fuel_cell': "LEV-200", 'type_control': "Phi_des", 'type_purge': "constant_purge"}
@@ -47,7 +47,7 @@ def init_x(operating_inputs, parameters):
     Psat_ini = 101325 * 10 ** (-2.1794 + 0.02953 * (Tfc - 273.15) - 9.1837e-5 * (Tfc - 273.15) ** 2 + 1.4454e-7 * (Tfc - 273.15) ** 3)
     slim = a_slim * (Pc_des / 1e5) + b_slim
     s_switch = a_switch * slim
-    C_v_ini =  Psat(343.13) / (R * 343.13)  #*Phi_des_moy # mol.m-3. It is the initial vapor concentration.
+    C_v_ini =  Psat(Tfc) / (R * Tfc)  #*Phi_des_moy # mol.m-3. It is the initial vapor concentration.
     C_H2_ini = (P_des_moy - Phi_des_moy * Psat_ini) / (R * Tfc)  # mol.m-3. It is the initial H2 concentration
     C_O2_ini = yO2_ext * (P_des_moy - Phi_des_moy * Psat_ini) / (R * Tfc)  # mol.m-3. It is the initial O2 concentration in the fuel cell.
     C_N2_ini = (1 - yO2_ext) * (P_des_moy - Phi_des_moy * Psat_ini) / (R * Tfc)  # mol.m-3. It is the initial N2  concentration in the fuel cell.
@@ -86,7 +86,7 @@ def init_x(operating_inputs, parameters):
     C_O2_mem_init = [0] * (n_mem - 1) + [0]
     C_H2_agc, C_H2_agdl, C_H2_acl = C_H2_ini, C_H2_ini, C_H2_ini
     C_O2_ccl, C_O2_cgdl, C_O2_cgc = C_O2_ini, C_O2_ini, C_O2_ini
-    C_N2, eta_c = C_N2_ini, eta_c_ini
+    C_N2 = C_N2_ini
     Pasm, Paem, Pcsm, Pcem = Pasm_ini, Paem_ini, Pcsm_ini, Pcem_ini
     Phi_asm, Phi_aem, Phi_csm, Phi_cem = Phi_asm_ini, Phi_aem_ini, Phi_csm_ini, Phi_cem_ini
     Wcp, Wa_inj, Wc_inj, Abp_a, Abp_c = Wcp_ini, Wa_inj_ini, Wc_inj_ini, Abp_a_ini, Abp_c_ini
@@ -95,12 +95,12 @@ def init_x(operating_inputs, parameters):
 
     # Gathering of the variables initial value into one list
     x0 = ([C_H2_agc] + [C_H2_agdl] * n_gdl + [C_H2_acl] + C_H2_mem_init +
-                    C_O2_mem_init + [C_O2_ccl] + [C_O2_cgdl] * n_gdl + [C_O2_cgc] + [C_N2] +
-                    [C_v_agc] + [C_v_agdl] * n_gdl + [C_v_acl, C_v_ccl+1] + [C_v_cgdl] * n_gdl + [C_v_cgc] +
-                    [0] + s_agdl_init + [0, s_ccl_init] + s_cgdl_init + [s_boundary] +
-                    [2] + [lambda_mem_ini] * n_mem + [lambda_mem_ini] +
-                    [eta_c, Pasm, Paem, Pcsm, Pcem, Phi_asm, Phi_aem, Phi_csm, Phi_cem] +
-                    [Wcp, Wa_inj, Wc_inj, Abp_a, Abp_c] + C_Pt_mem_init +
-                    [C_Pt2_ccl, Hmem] + prd_init.tolist() + theta_CCL.tolist() +
-                    [operating_inputs["Tfc"]] * 32)
+                C_O2_mem_init + [C_O2_ccl] + [C_O2_cgdl] * n_gdl + [C_O2_cgc] + [C_N2] +
+                [C_v_agc] + [C_v_agdl] * n_gdl + [C_v_acl, C_v_ccl+1] + [C_v_cgdl] * n_gdl + [C_v_cgc] +
+                [0] + s_agdl_init + [0, s_ccl_init] + s_cgdl_init + [s_boundary] +
+                [2] + [lambda_mem_ini] * n_mem + [lambda_mem_ini] + [eta_c_ini] +
+                [Pasm, Paem, Pcsm, Pcem, Phi_asm, Phi_aem, Phi_csm, Phi_cem] + 
+                [Wcp, Wa_inj, Wc_inj, Abp_a, Abp_c] + C_Pt_mem_init +
+                [C_Pt2_ccl, Hmem] + prd_init.tolist() + theta_CCL.tolist() +
+                [operating_inputs["Tfc"]] * 32)
     return x0

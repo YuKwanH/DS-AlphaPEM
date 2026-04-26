@@ -26,7 +26,7 @@ def display(solution, model):
         ("T", "Temperature (K)"),
     ]
 
-    plot_nodes = nodes[1:-1]
+    plot_nodes = nodes
     n_panels = len(profile_panels)
     n_cols = 2
     n_rows = (n_panels + 1) // n_cols
@@ -40,9 +40,9 @@ def display(solution, model):
         if profile_key == "saturation":
             ax.set_ylim(-0.05, 1.05)
         if profile_key == "lambda":
-            ax.set_xlim(borders[1], borders[5])
+            ax.set_xlim(borders[2], borders[5])
 
-        y_values = expand_profile_on_nodes(profile_key, profile_1d[profile_key])[1:-1]
+        y_values = expand_profile_on_nodes(profile_key, profile_1d[profile_key])
         ax.plot(plot_nodes, y_values, linewidth=1.8, marker="o", markersize=3)
         for x in borders:
             ax.axvline(x=x, color="tab:gray", linestyle="--", linewidth=0.9, alpha=0.8)

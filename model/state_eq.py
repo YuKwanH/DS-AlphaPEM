@@ -16,6 +16,7 @@ def dxdt_AGDL(dif, x, Hgdl, Hgc, Hcl,epsilon_gdl, n_gdl, s_front_agdl,
                          J_H2_agc_agdl, J_H2_agdl_agdl, J_H2_agdl_acl, **kwargs):
 
     for i in range(n_gdl):
+
         if i == 0: #AGC/AGDL interface
             dif['dC_v_agdl_1 / dt']    = ((Jv_agc_agdl - Jv_agdl_agdl[0]) / (Hgdl / n_gdl + Hgc/2) + Sv_agdl[0])/ (epsilon_gdl * (1 - x['s_agdl_1']))
             dif['dC_H2_agdl_1 / dt'] = (J_H2_agc_agdl - J_H2_agdl_agdl[0]) / (Hgdl / n_gdl + Hgc/2) / (epsilon_gdl * (1 - x['s_agdl_1']))
@@ -57,7 +58,7 @@ def dxdt_CGDL(dif, x,  epsilon_gdl, n_gdl, Hgdl, Hgc, Hcl, s_front_cgdl,
                          JT_ccl_cgdl, JT_cgdl, JT_cgdl_cgc, 
                          Jv_ccl_cgdl, Jv_cgdl_cgdl, Jv_cgdl_cgc, 
                          Sv_cgdl, Sec_cgdl, Sl_cgdl, 
-                         Jl_ccl_cgdl, Jl_cgdl_cgdl,
+                         Jl_ccl_cgdl, Jl_cgdl_cgdl, Jl_cgdl_cgc,
                          J_O2_ccl_cgdl, J_O2_cgdl_cgdl, J_O2_cgdl_cgc,  **kwargs):
     for i in range(n_gdl):
         if i == 0:
@@ -103,19 +104,19 @@ def dxdt_ACL(dif, x, epsilon_cl,  Hcl, Hgdl, n_gdl,
     dif["dTacl / dt"]        = ((JT_agdl_acl - JT_acl_mem) / (Hgdl / n_gdl + Hcl/2) + Sr_acl + Sre_acl + Sad_acl + Sec_acl)/(Cp_cl * rho_cl)
 
 
-def dxdt_MEM(dif, epsilon_mc, Hcl, Hmem,n_mem,
+def dxdt_MEM(dif, x, epsilon_mc, Hcl, Hmem,n_mem, Ucell,
                          J_lambda_mem_acl, J_lambda_mem_ccl, J_O2_mem, J_H2_mem, J_lambda_mem,
                          JT_acl_mem, JT_mem, JT_mem_ccl, Sre_mem,
                          J_O2_mem_ccl, J_H2_acl_mem,
                          Sp_ccl, S_sorp_acl, S_sorp_ccl, **kwargs):
 
     # MEM dynamics 
-    dif['dlambda_acl / dt']         = M_eq / (rho_mem * epsilon_mc) * (-J_lambda_mem_acl /  (Hmem/n_mem + Hcl/10) + S_sorp_acl)
-    dif['dlambda_ccl / dt']         = M_eq / (rho_mem * epsilon_mc) * (J_lambda_mem_ccl /  (Hmem/n_mem + Hcl/5) + S_sorp_ccl + Sp_ccl)
-    dif['dlambda_mem_1 / dt'] = M_eq / rho_mem * (J_lambda_mem_acl - J_lambda_mem[0]) / (Hmem/n_mem + Hcl/10)
+    dif['dlambda_acl / dt']         = M_eq / (rho_mem * epsilon_mc) * (-J_lambda_mem_acl /  (Hmem/n_mem + Hcl/2) + S_sorp_acl)
+    dif['dlambda_ccl / dt']         = M_eq / (rho_mem * epsilon_mc) * (J_lambda_mem_ccl /  (Hmem/n_mem + Hcl/2) + S_sorp_ccl + Sp_ccl)
+    dif['dlambda_mem_1 / dt'] = M_eq / rho_mem * (J_lambda_mem_acl - J_lambda_mem[0]) / (Hmem/n_mem + Hcl/2)
     for i in range(2, n_mem):
         dif[f'dlambda_mem_{i} / dt'] = M_eq / rho_mem * (J_lambda_mem[i-2] - J_lambda_mem[i-1]) / (Hmem/n_mem)
-    dif[f'dlambda_mem_{n_mem} / dt'] = M_eq / rho_mem * (J_lambda_mem[-1] - J_lambda_mem_ccl) / (Hmem/n_mem + Hcl/5)
+    dif[f'dlambda_mem_{n_mem} / dt'] = M_eq / rho_mem * (J_lambda_mem[-1] - J_lambda_mem_ccl) / (Hmem/n_mem + Hcl/2)
     for i in range(n_mem):
             if i == 0:
                 dif[f"dTmem_{i+1} / dt"] = ((JT_acl_mem - JT_mem[0]) / (Hmem/n_mem + Hcl/3) + Sre_mem[i])/(Cp_mem * rho_mem)
@@ -123,9 +124,6 @@ def dxdt_MEM(dif, epsilon_mc, Hcl, Hmem,n_mem,
                 dif[f"dTmem_{i+1} / dt"] = ((JT_mem[n_mem-2] - JT_mem_ccl) / (Hmem/n_mem + Hcl/3) + Sre_mem[i])/(Cp_mem * rho_mem)
             else:
                 dif[f"dTmem_{i+1} / dt"] = ((JT_mem[i-1] - JT_mem[i]) / (Hmem/n_mem) + Sre_mem[i])/(Cp_mem * rho_mem)
-
-    dif['ddelta_mem / dt'] = 0 #-20.8 / (0.82 * 1980e3) * flourideReleaseRate(MT = Hmem, U = Ucell, Tfc = Tfc, PO2_ca = C_O2_ccl * R * Tfc)
-
     #Crossover fluxes of O2 and H2 in the membrane
     dif[f'dC_H2_mem_{1} / dt'] = (J_H2_acl_mem - J_H2_mem[0]) / (Hmem / n_mem+Hcl)
     dif[f'dC_O2_mem_{n_mem} / dt'] = (J_O2_mem[n_mem - 1] - J_O2_mem_ccl) / (Hmem / n_mem+ Hcl)
@@ -134,6 +132,12 @@ def dxdt_MEM(dif, epsilon_mc, Hcl, Hmem,n_mem,
         dif[f'dC_H2_mem_{i} / dt'] = (J_H2_mem[i - 1] - J_H2_mem[i]) / (Hmem / n_mem) # + S_Pt2_mem[i - 1]
         dif[f'dC_Pt2_mem_{i} / dt'] = 0 #((J_Pt2_mem[i-1] - J_Pt2_mem[i]) / (Hmem / n_mem)) / (1 - epsilon_mc)  # + S_Pt2_mem[i - 1]
     dif[f'dC_H2_mem_{n_mem} / dt'] = (J_H2_mem[- 1] - 0) / (Hmem / n_mem)
+
+    # Thickness degradation
+    Tmem = np.mean([x[f"Tmem_{i+1}"] for i in range(n_mem)])
+    P_O2_ccl = x[f"C_O2_ccl"] * R * x['Tccl']
+    dif['ddelta_mem / dt'] = -20.8 / (0.82 * 1980e3) * flourideReleaseRate(MT=Hmem, U=Ucell, Tmem=Tmem, PO2_ca=P_O2_ccl)
+
 
 
 def dxdt_CCL(dif,x, Jl_ccl_cgdl, Hcl, Hgdl, n_gdl, epsilon_cl, 
@@ -150,7 +154,7 @@ def dxdt_CCL(dif,x, Jl_ccl_cgdl, Hcl, Hgdl, n_gdl, epsilon_cl,
 
 def dxdt_U(dif, i_fc, C_O2_ccl, eta_c, Tccl, Hcl, i0_c_ref, kappa_c, C_scl, f_drop, ECSA, **kwargs):
     i0_c = (ECSA * i0_c_ref * (C_O2_ccl / C_O2ref)** kappa_c) * np.exp(Eact / R * (1 / 353 - 1 / Tccl))
-    dif['deta_c / dt'] = 1 / (C_scl * Hcl) * ((i_fc) - i0_c * np.exp(f_drop * alpha_c * F / (R * Tccl) * eta_c))
+    dif['deta_c / dt'] =  1 / (C_scl * Hcl) * ((i_fc) - i0_c * np.exp(f_drop * alpha_c * F / (R * Tccl) * eta_c))
 
 
 def dxdt_N2(dif,J_N2_in, J_N2_out, Lgc, **kwargs):
@@ -191,14 +195,14 @@ def dxdt_TH(dif, Pagc, Pcgc, Abp_a, Abp_c, Tfc, Pa_des, Pc_des, **kwargs):
     dPcgcdt = (dif['dC_v_cgc / dt'] + dif['dC_O2_cgc / dt'] + dif['dC_N2 / dt']) * R * Tfc
 
     # Throttle area evolution inside the anode auxiliaries
-    dif['dAbp_a / dt'] = - 1e-6 * (Pa_des - Pagc) #+ 1e-7 * dPagcdt  # PD controller
+    dif['dAbp_a / dt'] = -Kp * (Pa_des - Pagc) + Kd * dPagcdt  # PD controller
     if Abp_a > A_T and dif['dAbp_a / dt'] > 0:  # The throttle area cannot be higher than the maximum value
         dif['dAbp_a / dt'] = 0
     elif Abp_a < 0 and dif['dAbp_a / dt'] < 0:  # The throttle area cannot be lower than 0
         dif['dAbp_a / dt'] = 0
 
     # Throttle area evolution inside the cathode auxiliaries
-    dif['dAbp_c / dt'] = - Kp * (Pc_des - Pcgc) #+ Kd * dPcgcdt  # PD controller
+    dif['dAbp_c / dt'] = - Kp * (Pc_des - Pcgc) + Kd * dPcgcdt  # PD controller
     if Abp_c > A_T and dif['dAbp_c / dt'] > 0:  # The throttle area cannot be higher than the maximum value
         dif['dAbp_c / dt'] = 0
     elif Abp_c < 0 and dif['dAbp_c / dt'] < 0:  # The throttle area cannot be lower than 0
@@ -206,7 +210,7 @@ def dxdt_TH(dif, Pagc, Pcgc, Abp_a, Abp_c, Tfc, Pa_des, Pc_des, **kwargs):
 
 
 def dxdt_PRD(dif, Hmem, n_mem, epsilon_mc,
-                       prd, theta, kdis, kox, kcdis, kdet, 
+                       prd, theta_ccl, kdis, kox, kcdis, kdet, 
                        r_m, prd0, C_Pt2_ccl, J_Pt2_mem, **kwargs):
     """
     Urchaga et al 2015 dr/dt = VmKrdpCpt,avg*exp(-R0/r) - VmKdisCpt,avg*exp(-R0/r)
@@ -215,11 +219,11 @@ def dxdt_PRD(dif, Hmem, n_mem, epsilon_mc,
     M_Pt0 = 4 / 3 * np.pi * rho_Pt * trapezoid(y=prd0 * r_m ** 3, x=r_m)
     dMdisdt = 4 * np.pi * rho_Pt * trapezoid(y=prd * r_m ** 2 * drdt, x=r_m)
     dMcdisdt = 4 * np.pi * rho_Pt * trapezoid(y=prd * r_m ** 2 * kcdis, x=r_m)
-    dif['dC_Pt2_ccl / dt'] = -3.33 / M_Pt * (dMdisdt - dMcdisdt) / M_Pt0 - J_Pt2_mem[-1] / (Hmem / n_mem)/ (1 - epsilon_mc)
     dfdt = -np.gradient(prd * drdt, r_m) - kdet * prd
-    dthetadt = (((kox - kcdis) / GAMMA_max) - (2 * theta / r_m) * drdt)
-    for i in range(1, len(r_m)+1):
-        dif[f"dS_N_ccl_{i}"+' / dt'] = dfdt[i - 1]
-        dif[f"dtheta_ccl_{i}"+' / dt'] = dthetadt[i - 1]
+    dthetadt = (((kox - kcdis) / GAMMA_max) - (2 * theta_ccl / r_m) * drdt)
+    dif['dC_Pt2_ccl / dt'] = -3.33 / M_Pt * (dMdisdt - dMcdisdt) / M_Pt0 # - J_Pt2_mem[-1] / (Hmem / n_mem)/ (1 - epsilon_mc)
+    for i in range(0, len(r_m)):
+        dif[f"dS_N_ccl_{i+1}"+' / dt'] = dfdt[i]
+        dif[f"dtheta_ccl_{i+1}"+' / dt'] = dthetadt[i]
 
         

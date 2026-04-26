@@ -41,12 +41,12 @@ def dif_eq_int_values(t, x, operating_inputs, parameters):
     Mcsm = Phi_csm * Psat(Tfc) / Pcsm * M_H2O + yO2_ext * (1 - Phi_csm * Psat(Tfc) / Pcsm) * M_O2 + (1 - yO2_ext) * (1 - Phi_csm * Psat(Tfc) / Pcsm) * M_N2
     Mcem = Phi_cem * Psat(Tfc) / Pcem * M_H2O + y_cgc * (1 - Phi_cem * Psat(Tfc) / Pcem) * M_O2 + (1 - y_cgc) * (1 - Phi_cem * Psat(Tfc) / Pcem) * M_N2
     Mext = (Phi_ext * Psat(Text) / Pext * M_H2O + 
-            yO2_ext * (1 - Phi_ext * Psat(Text) / Pext) * M_O2 + 
-            (1 - yO2_ext) * (1 - Phi_ext * Psat(Text) / Pext) * M_N2)
+                    yO2_ext * (1 - Phi_ext * Psat(Text) / Pext) * M_O2 + 
+                    (1 - yO2_ext) * (1 - Phi_ext * Psat(Text) / Pext) * M_N2)
     Magc = C_v_agc * R * Tfc / Pagc * M_H2O +  C_H2_agc * R * Tfc / Pagc * M_H2
     Mcgc = (Phi_cgc * Psat(Tfc) / Pcgc * M_H2O + 
-            y_cgc * (1 - Phi_cgc * Psat(Tfc) / Pcgc) * M_O2 + 
-            (1 - y_cgc) * (1 - Phi_cgc * Psat(Tfc) / Pcgc) * M_N2)
+                    y_cgc * (1 - Phi_cgc * Psat(Tfc) / Pcgc) * M_O2 + 
+                    (1 - y_cgc) * (1 - Phi_cgc * Psat(Tfc) / Pcgc) * M_N2)
     # Physical quantities in the auxiliary system
     # Pressure ratios
     Pr_aem = (Pext / Paem)
@@ -58,34 +58,32 @@ def dif_eq_int_values(t, x, operating_inputs, parameters):
     Maem = Phi_aem * Psat(Tfc) / Paem * M_H2O + (1 - Phi_aem * Psat(Tfc) / Paem) * M_H2
     Masm = Phi_asm * Psat(Tfc) / Pasm * M_H2O + (1 - Phi_asm * Psat(Tfc) / Pasm) * M_H2
     Mcem = (Phi_cem * Psat(Tfc) / Pcem * M_H2O + 
-            y_cem * (1 - Phi_cem * Psat(Tfc) / Pcem) * M_O2 + 
-            (1 - y_cem) * (1 - Phi_cem * Psat(Tfc) / Pcem) * M_N2)
+                    y_cem * (1 - Phi_cem * Psat(Tfc) / Pcem) * M_O2 + 
+                    (1 - y_cem) * (1 - Phi_cem * Psat(Tfc) / Pcem) * M_N2)
     Mcsm = (Phi_csm * Psat(Tfc) / Pcsm * M_H2O + 
-            yO2_ext * (1 - Phi_csm * Psat(Tfc) / Pcsm) * M_O2 + 
-            (1 - yO2_ext) * (1 - Phi_csm * Psat(Tfc) / Pcsm) * M_N2)
+                    yO2_ext * (1 - Phi_csm * Psat(Tfc) / Pcsm) * M_O2 + 
+                    (1 - yO2_ext) * (1 - Phi_csm * Psat(Tfc) / Pcsm) * M_N2)
     
     # eletrochemical kinetics
     i_fc = operating_inputs['current_density'](t)
     fd = fdrop(x=x, operating_inputs=operating_inputs, parameters=parameters)
+    U = Ucell(t=t, variables=x, operating_inputs=operating_inputs, parameters=parameters)
     PRD = np.zeros(n_group_pt)
     theta_ccl = np.zeros(n_group_pt)
     for i in range(n_group_pt):
         PRD[i] = x[f"S_N_ccl_{i + 1}"]
         theta_ccl[i] = x[f'theta_ccl_{i + 1}']
-    ECSA = (getECSA(PRD, radius= r_m) / 
-            getECSA(initPRD(resolution=n_group_pt), radius= r_m))
+    ECSA = (getECSA(PRD, radius= r_m) / getECSA(parameters["prd0"], radius= r_m))
     # CCL kinetic
     C_Proton = Cproton_CCL(lambda_w=x["lambda_ccl"])
-    U = Ucell(t=t, variables=x, operating_inputs=operating_inputs, parameters=parameters)
-    kdis = PtDissolution(U, operating_inputs["Tfc"], x["C_Pt2_ccl"], theta_ccl)
-    kox = PtOxidation(U, operating_inputs["Tfc"], C_Proton, theta_ccl)
+    kdis = PtDissolution(U, x["Tccl"], x["C_Pt2_ccl"], theta_ccl)
+    kox = PtOxidation(U, x["Tccl"], C_Proton, theta_ccl)
     kcdis = PtOxideDissolution(theta_ccl, C_Proton)
-    kdet = PtDetachment(U, operating_inputs["Tfc"], r_m)
+    kdet = PtDetachment(U, x["Tccl"], r_m)
     
     # Setpoints 
     # The desired air compressor flow rate Wcp_des (kg.s-1)
-    Wcp_des = (n_cell * Mext * Pext / (Pext - Phi_ext * Psat(Text)) * 
-               1 / yO2_ext * Sc * (iload) / (4 * F) * Aact)
+    Wcp_des = (n_cell * Mext * Pext / (Pext - Phi_ext * Psat(Text)) * 1 / yO2_ext * Sc * (iload) / (4 * F) * Aact)
     Wrd = n_cell * M_H2 * Sa * (iload) / (2 * F) * Aact
     Wa_inj_des = M_H2O * Phi_a_des * Psat(Tfc) / Prd * (Wrd / M_H2)
     # The desired humidifier flow rate at the cathode side Wc_inj_des (kg.s-1)
@@ -98,8 +96,9 @@ def dif_eq_int_values(t, x, operating_inputs, parameters):
                  "Mext": Mext, "Masm": Masm, "Maem": Maem, "Mcsm": Mcsm, "Mcem": Mcem, "Magc": Magc, "Mcgc": Mcgc,
                  "Phi_agc": Phi_agc, "Phi_cgc": Phi_cgc,
                  "Wcp_des": Wcp_des, "Wa_inj_des": Wa_inj_des, "Wc_inj_des": Wc_inj_des,
-                 "y_cgc": y_cgc, "y_cem": y_cem, "f_drop": fd, 'i_fc': i_fc, 
-                 'ECSA': ECSA, 'kox': kox, 'kcdis': kcdis, 'kdet': kdet, 'kdis': kdis, 'prd': PRD, 'theta': theta_ccl}
+                 "y_cgc": y_cgc, "y_cem": y_cem, "f_drop": fd, 'i_fc': i_fc, "Ucell": U,
+                 'ECSA': ECSA, 'kox': kox, 'kcdis': kcdis, 'kdet': kdet, 'kdis': kdis, 'prd': PRD, 'theta_ccl': theta_ccl}
+    
     return result
 
 
@@ -111,10 +110,9 @@ def calculate_flows(t, x ,operating_inputs, parameters, Pagc, Pcgc, Pacl,Pagdl, 
     iload = operating_inputs["current_density"](t)
     Iload = iload * parameters["Aact"]
     # Mapping constant parameters
-    Hcl, Hgdl, Hgc, Hmem, Aact = parameters["Hcl"], parameters["Hgdl"], parameters["Hgc"], parameters["Hmem"], parameters["Aact"]
+    Hcl, Hgdl, Hgc, Hmem, Wgc,Lgc, Aact = parameters["Hcl"], parameters["Hgdl"], parameters["Hgc"], parameters["Hmem"], parameters["Wgc"], parameters["Lgc"], parameters["Aact"]
     n_gdl, n_mem = parameters["n_gdl"], parameters["n_mem"]
-    epsilon_gdl, epsilon_cl, epsilon_c, epsilon_mc = parameters["epsilon_gdl"], parameters["epsilon_cl"], parameters["epsilon_c"], parameters["epsilon_mc"]
-    Wgc, Hgc = parameters["Wgc"], parameters["Hgc"]
+    epsilon_gdl, epsilon_cl, epsilon_c = parameters["epsilon_gdl"], parameters["epsilon_cl"], parameters["epsilon_c"]
     e = parameters["e"]
     # Operating inputs
     Pa_des, Pc_des = operating_inputs['Pa_des'], operating_inputs["Pc_des"]
@@ -154,7 +152,7 @@ def calculate_flows(t, x ,operating_inputs, parameters, Pagc, Pcgc, Pacl,Pagdl, 
     Waem_in = Kem_in * (Pagc - x["Paem"])  # kg.s-1
     Ware = 0  # kg.s-1
     Waem_out = C_D * x['Abp_a'] * x["Paem"] / np.sqrt(R * Tfc) * Pr_aem ** (1 / gamma_H2) * \
-                            np.sqrt(Magc * 2 * gamma_H2 / (gamma_H2 - 1) * (1 - Pr_aem ** ((gamma_H2 - 1) / gamma_H2)))
+                          np.sqrt(Magc * 2 * gamma_H2 / (gamma_H2 - 1) * (1 - Pr_aem ** ((gamma_H2 - 1) / gamma_H2)))
     Ja_out = Waem_in / (Hgc * Wgc * Magc)  # mol.m-2.s-1
     Jv_a_out = Phi_agc * Psat(Tfc) / Pagc * Ja_out
     J_H2_out = (1 - Phi_agc * Psat(Tfc) / Pagc) * Ja_out
@@ -213,34 +211,67 @@ def calculate_flows(t, x ,operating_inputs, parameters, Pagc, Pcgc, Pacl,Pagdl, 
                             (x['C_v_cgdl_1'] - x["C_v_ccl"]) / (Hgdl / n_gdl + Hcl/2)
     
     # saturation front 
-    if x['s_acl'] > 0 and x["C_v_acl"] > C_v_sat(x['Tacl']) and Jv_agdl_agdl[-1] < 0 and x['C_v_agdl_1'] < C_v_sat(Tfc):
-        Jwater = -Jv_agdl_agdl[-1]
-        s_front_agdl = (C_v_sat(Tfc) - x["C_v_agdl_1"]) * Da_eff(0, epsilon_c, Pc_des, Tfc, epsilon_c, epsilon_gdl) * epsilon_gdl **1.5 / (Jwater)
-        if s_front_agdl > Hgdl and s_front_agdl < Hgdl*1.1:
+    ## Anode side
+    Jwater = Jv_agdl_agdl[-1] 
+    if Jwater < 0: # AGC <- ACL
+        # ------------------- Regime M ------------------- #
+        if x["C_v_acl"] > C_v_sat(x["Tacl"]) and x["C_v_agc"] <= C_v_sat(Tfc):
+            s_agdl_avg = np.mean([x[f's_agdl_{i}'] for i in range(1, n_gdl + 1)])
+            s_front_agdl = -(C_v_sat(Tfc) - x["C_v_agc"]) * (Dc_eff(np.mean(s_agdl_avg),epsilon_gdl,Pa_des, Tfc,epsilon_c,epsilon_gdl) / Jwater)
+        # ------------------- Regime L ------------------- #
+        elif x["C_v_agc"] > C_v_sat(Tfc) and x["C_v_acl"] > C_v_sat(x['Tacl']):
+            mliquid = M_H2O * (-Jwater + (Jv_a_in - Jv_a_out) * Hgc/Lgc)
+            ans1 = (mliquid * Lgc * nu_l(Tfc)/ (Hgc * rho_H2O(Tfc) * nu_l(Tfc))) ** (1/3)
+            s_agdl_inter = ans1 / (ans1 + 1)
+            s_front_agdl = 0
+        # ------------------- Regime V ------------------- #
+        else:
             s_front_agdl = Hgdl
-    elif x['C_v_agc'] > C_v_sat(Tfc) and Jv_agc_agdl < 0:
-        s_front_agdl = 0
-    else:
-        s_front_agdl = Hgdl
-    if x['s_ccl'] > 0 and x["C_v_ccl"] > C_v_sat(x['Tccl']) and Jv_cgdl_cgdl[0] > 0 and x['C_v_cgdl_10'] < C_v_sat(Tfc):
-        Jwater = Jv_cgdl_cgdl[0]
-        s_front_cgdl = Hgdl - (C_v_sat(Tfc) - x["C_v_cgdl_10"]) * Dc_eff(0, epsilon_c, Pc_des, Tfc, epsilon_c, epsilon_gdl) * epsilon_gdl **1.5 / (Jwater)
-        if s_front_cgdl < 0 and s_front_cgdl > -Hgdl*0.1:
+    else: # AGC -> ACL
+        # ------------------- Regime M ------------------- #
+        if  x["C_v_acl"] < C_v_sat(x['Tacl'])  and x['C_v_agc'] > C_v_sat(Tfc):
+            mliquid = M_H2O * (-Jwater + (Jv_a_in - Jv_a_out) * Hgc/Lgc)
+            ans1 = (mliquid * Lgc * nu_l(Tfc)/ (Hgc * rho_H2O(Tfc) * nu_l(Tfc))) ** (1/3)
+            s_agdl_inter = ans1 / (ans1 + 1)
+            rhs = (-sigma(Tfc) * K0(epsilon_gdl, epsilon_c, epsilon_gdl)/nu_l(Tfc)* np.cos(theta_c_gdl)*(epsilon_gdl/K0(epsilon_gdl,epsilon_c, epsilon_gdl))**0.5)
+            s_front_agdl = Hgdl - (0.35425 *s_agdl_inter ** 4 - 0.848 *  s_agdl_inter**5 + 0.6315 *  s_agdl_inter ** 6) * rhs / (M_H2O * -Jwater)
+        elif  x["C_v_acl"] < C_v_sat(x['Tacl'])  and x['C_v_agc'] < C_v_sat(Tfc):
+            s_front_agdl =Hgdl
+        else:
+            s_front_agdl = 0
+
+    # Cathode side
+    Jwater = Jv_cgdl_cgdl[-1] 
+    if Jwater > 0: # CCL -> CGC
+        # ------------------- Regime M ------------------- #
+        if  x["C_v_ccl"] >= C_v_sat(x['Tccl']) and x['C_v_cgc'] <= C_v_sat(Tfc):
+            s_cgdl_avg = np.mean([x[f's_cgdl_{i}'] for i in range(1, n_gdl + 1)])
+            s_front_cgdl = (C_v_sat(Tfc) - x["C_v_cgdl_10"]) * Dc_eff(s_cgdl_avg, epsilon_c, Pc_des, Tfc, epsilon_c, epsilon_gdl) * epsilon_gdl **1.5 / (Jwater)
+        # ------------------- Regime L ------------------- #
+        elif x['C_v_cgc'] > C_v_sat(Tfc) and x['C_v_ccl'] > C_v_sat(x['Tccl']):
+            s_front_cgdl = Hgdl
+            mliquid = M_H2O * (Jwater + (Jv_c_in - Jv_c_out) * Hgc/Lgc)
+            ans1 = (mliquid * Lgc * nu_l(Tfc)/ (Hgc * rho_H2O(Tfc) * nu_l(Tfc))) ** (1/3)
+            s_cgdl_inter = ans1 / (ans1 + 1)
+        else:
             s_front_cgdl = 0
-    elif x['C_v_cgc'] > C_v_sat(Tfc) and Jv_cgdl_cgc > 0:
-        s_front_cgdl = Hgdl
-    else:
-        s_front_cgdl = 0
-    
-    if s_front_agdl < 0 or s_front_cgdl < 0:
-        raise ValueError("Negative saturation {}({}) front position. Check the inputs and the model assumptions.".format("anode" if s_front_agdl < 0 else "cathode", s_front_agdl if s_front_agdl < 0 else s_front_cgdl))
-    if s_front_agdl > Hgdl or s_front_cgdl > Hgdl:
-        print( x["C_v_cgdl_10"])
-        raise ValueError("Saturation front position {} ({}) exceeds the GDL thickness. Check the inputs and the model assumptions.".format("anode" if s_front_agdl > Hgdl else "cathode", s_front_agdl if s_front_agdl > Hgdl else s_front_cgdl))
-    
+    else: # CCL <- CGC
+        mliquid = M_H2O * (Jwater + (Jv_c_in - Jv_c_out) * Hgc/Lgc)
+        ans1 = (mliquid * Lgc * nu_l(Tfc)/ (Hgc * rho_H2O(Tfc) * nu_l(Tfc))) ** (1/3)
+        s_cgdl_inter = ans1 / (ans1 + 1)
+        # ------------------- Regime M ------------------- #
+        if  x["C_v_ccl"] <= C_v_sat(x['Tccl'])  and x['C_v_cgc'] >= C_v_sat(Tfc):
+            rhs = (-sigma(Tfc) * K0(epsilon_gdl, epsilon_c, epsilon_gdl)/nu_l(Tfc)* np.cos(theta_c_gdl)*(epsilon_gdl/K0(epsilon_gdl,epsilon_c, epsilon_gdl))**0.5)
+            s_front_cgdl = (0.35425 *s_cgdl_inter ** 4 - 0.848 *  s_cgdl_inter**5 + 0.6315 *  s_cgdl_inter ** 6) * rhs / (M_H2O * Jwater)
+        elif  x["C_v_ccl"] < C_v_sat(x['Tccl'])  and x['C_v_cgc'] < C_v_sat(Tfc):
+            s_cgdl_inter = 0
+            s_front_cgdl = 0
+        else:
+            s_front_cgdl = Hgdl
+
     #_____________________________________Liquid water flows (kg.m-2.s-1)__________________________________________
     if s_front_agdl == 0:
-        Jl_agdl_agc = x["s_agdl_1"] **3 / (1 - x["s_agdl_1"]) * rho_H2O(x["Tagdl_1"]) *(1/1298)  *4.8 * 1e-5/3e-4
+        Jl_agdl_agc = -s_front_agdl **3 / (1 - s_front_agdl) * rho_H2O(x["Tagdl_1"]) *(1/1298)  *4.8 * 1e-5/3e-4
     else:
         Jl_agdl_agc = 0
     # Anode side
@@ -252,9 +283,10 @@ def calculate_flows(t, x ,operating_inputs, parameters, Pagc, Pcgc, Pacl,Pagdl, 
     Jl_agdl_acl = - 2 * sigma((x[f"Tagdl_{n_gdl}"] + x['Tacl']) / 2) * K0(epsilon_mean, epsilon_c, epsilon_gdl) / nu_l((x[f"Tagdl_{n_gdl}"] + x['Tacl']) / 2) * abs(np.cos(theta_c_mean)) * \
                             (epsilon_mean / K0(epsilon_mean, epsilon_c, epsilon_gdl)) ** 0.5 * (s_agdl_acl ** e) * (1.417 - 4.24 * s_agdl_acl + 3.789 * s_agdl_acl ** 2) * \
                             (x["s_acl"] - x[f's_agdl_{n_gdl}']) / (Hgdl / n_gdl)
+    
     # Cathode side
     if s_front_cgdl == Hgdl:
-        Jl_cgdl_cgc = x["s_cgdl_{}".format(n_gdl)] **3 / (1 - x["s_cgdl_{}".format(n_gdl)]) * rho_H2O(x["Tcgdl_{}".format(n_gdl)]) *(1/1298)  *4.8 * 1e-5/3e-4
+        Jl_cgdl_cgc = s_cgdl_inter **3 / (1 - s_cgdl_inter) * rho_H2O(x["Tcgdl_{}".format(n_gdl)]) *(1/1298)  *4.8 * 1e-5/3e-4
     else:
         Jl_cgdl_cgc = 0
     Jl_cgdl_cgdl = [0] * (n_gdl - 1)
