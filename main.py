@@ -7,21 +7,26 @@ from scipy.integrate import solve_ivp
 if __name__ == "__main__":
     model = PEMFC(param=parameters, variable_names=solver_variable_names, operating_inputs=operating_inputs)
     solution_init = init_x(operating_inputs, parameters)
+
+    # For ~7x extra speedup with a slight (within-tolerance) trajectory shift,
+    # uncomment the next two lines and pass jac_sparsity=jac_sparsity to solve_ivp.
+    # jac_sparsity = model.compute_jac_sparsity(solution_init)
     solution = solve_ivp(fun=model.dxdt, t_span=(0, 10), y0=solution_init, method='BDF')
 
+    idx = model._idx
     profile_1d = {"v": [], "O2": [], "H2": [], "saturation": [], "lambda": [], "T": []}
     for name in nodes_names_vp:
-        profile_1d["v"].append(solution.y[model.variable_names.index(name), -1])
+        profile_1d["v"].append(solution.y[idx[name], -1])
     for name in nodes_name_O2:
-        profile_1d["O2"].append(solution.y[model.variable_names.index(name), -1])
+        profile_1d["O2"].append(solution.y[idx[name], -1])
     for name in nodes_names_H2:
-        profile_1d["H2"].append(solution.y[model.variable_names.index(name), -1])
+        profile_1d["H2"].append(solution.y[idx[name], -1])
     for name in nodes_names_s:
-        profile_1d["saturation"].append(solution.y[model.variable_names.index(name), -1])
+        profile_1d["saturation"].append(solution.y[idx[name], -1])
     for name in nodes_lambda:
-        profile_1d["lambda"].append(solution.y[model.variable_names.index(name), -1])
+        profile_1d["lambda"].append(solution.y[idx[name], -1])
     for name in nodes_T:
-        profile_1d["T"].append(solution.y[model.variable_names.index(name), -1])
+        profile_1d["T"].append(solution.y[idx[name], -1])
 
     profile_panels = [
         ("v", "Vapor Pressure $(mol/m^3)$"),
