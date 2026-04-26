@@ -57,62 +57,21 @@ class PEMFC:
                 inst_states = dif_eq_int_values(t=t, x = states, operating_inputs= self.operating_inputs, parameters=self.parameters)
                 massflow = calculate_flows(t, states, self.operating_inputs, self.parameters, **inst_states)
 
-                # Merge once per dxdt call so each dxdt_X call unpacks a single dict.
-                common = {**inst_states, **self.parameters, **massflow}
-                common_op = {**common, **self.operating_inputs}
+                dxdt_AGC(dif, **inst_states, **self.parameters, **massflow)
+                dxdt_CGC(dif,  **inst_states, **self.parameters, **massflow)
+                dxdt_AGDL(dif, states, **inst_states, **self.parameters, **massflow)
+                dxdt_CGDL(dif, states, **inst_states, **self.parameters, **massflow)
+                dxdt_ACL(dif, states, **inst_states, **self.parameters, **massflow)
+                dxdt_CCL(dif,  states, **inst_states, **self.parameters, **massflow)
+                dxdt_MEM(dif, **inst_states, **self.parameters, **massflow)
+                dxdt_CP(dif, **states, **inst_states, **self.parameters, **massflow)
+                dxdt_Manifold(dif, **inst_states, **self.parameters, **massflow, **self.operating_inputs)
+                dxdt_TH(dif, **states, **inst_states, **self.parameters, **massflow,  **self.operating_inputs)
+                dxdt_U(dif, **states, **inst_states, **self.parameters, **massflow)
+                dxdt_N2(dif, **inst_states, **self.parameters, **massflow)
+                dxdt_PRD(dif = dif, **states, **inst_states, **self.parameters, **massflow)
 
-                dxdt_AGC(dif, **common)
-                dxdt_CGC(dif, **common)
-                dxdt_AGDL(dif, states, **common)
-                dxdt_CGDL(dif, states, **common)
-                dxdt_ACL(dif, states, **common)
-                dxdt_CCL(dif, states, **common)
-                dxdt_MEM(dif, **common)
-                dxdt_CP(dif, **states, **common)
-                dxdt_Manifold(dif, **common_op)
-                dxdt_TH(dif, **states, **common_op)
-                dxdt_U(dif, **states, **common)
-                dxdt_N2(dif, **common)
-                dxdt_PRD(dif=dif, **states, **common)
-
-                return np.fromiter(dif.values(), dtype=float, count=self._n_states)
-
-        def compute_jac_sparsity(self, x0, t=0.0, eps=1e-7, n_probes=3, seed=0):
-                """Numerically detect the Jacobian sparsity pattern at x0.
-
-                Probes the initial state plus a few small random perturbations and
-                marks any (i, j) where dxdt[i] changes when x[j] is perturbed. The
-                diagonal is forced on. Conservative: a False entry only forms if
-                NO probe detected a change, so over-padding (slower but safe) is
-                preferred to under-padding.
-                """
-                from scipy.sparse import lil_matrix, csr_matrix
-
-                n = len(x0)
-                sparsity = lil_matrix((n, n), dtype=np.int8)
-                rng = np.random.default_rng(seed)
-                x_base = np.asarray(x0, dtype=float)
-
-                probes = [x_base.copy()]
-                for _ in range(max(0, n_probes - 1)):
-                        delta = rng.uniform(-1e-3, 1e-3, size=n) * np.abs(x_base) + 1e-9
-                        probes.append(x_base + delta)
-
-                for x_probe in probes:
-                        f0 = np.asarray(self.dxdt(t, x_probe), dtype=float)
-                        for j in range(n):
-                                x_p = x_probe.copy()
-                                step = max(eps * abs(x_p[j]), eps)
-                                x_p[j] += step
-                                f1 = np.asarray(self.dxdt(t, x_p), dtype=float)
-                                changed = np.flatnonzero(f1 != f0)
-                                for i in changed:
-                                        sparsity[i, j] = 1
-
-                for i in range(n):
-                        sparsity[i, i] = 1
-
-                return csr_matrix(sparsity)
+                return list(dif.values())
                 
         def _recovery(self, sol):
 
