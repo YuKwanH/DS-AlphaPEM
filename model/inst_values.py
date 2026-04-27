@@ -211,8 +211,9 @@ def calculate_flows(t, x ,operating_inputs, parameters, Pagc, Pcgc, Pacl,Pagdl, 
                             (x['C_v_cgdl_1'] - x["C_v_ccl"]) / (Hgdl / n_gdl + Hcl/2)
     
     # saturation front 
+    nu_g =  1.881e-5
     ## Anode side
-    Jwater = Jv_agdl_agdl[-1] 
+    Jwater = Jv_agc_agdl
     if Jwater < 0: # AGC <- ACL
         # ------------------- Regime M ------------------- #
         if x["C_v_acl"] > C_v_sat(x["Tacl"]) and x["C_v_agc"] <= C_v_sat(Tfc):
@@ -221,7 +222,7 @@ def calculate_flows(t, x ,operating_inputs, parameters, Pagc, Pcgc, Pacl,Pagdl, 
         # ------------------- Regime L ------------------- #
         elif x["C_v_agc"] > C_v_sat(Tfc) and x["C_v_acl"] > C_v_sat(x['Tacl']):
             mliquid = M_H2O * (-Jwater + (Jv_a_in - Jv_a_out) * Hgc/Lgc)
-            ans1 = (mliquid * Lgc * nu_l(Tfc)/ (Hgc * rho_H2O(Tfc) * nu_l(Tfc))) ** (1/3)
+            ans1 = (mliquid * Lgc * nu_l(Tfc)/ (Hgc * rho_H2O(Tfc) * nu_g)) ** (1/3)
             s_agdl_inter = ans1 / (ans1 + 1)
             s_front_agdl = 0
         # ------------------- Regime V ------------------- #
@@ -231,7 +232,7 @@ def calculate_flows(t, x ,operating_inputs, parameters, Pagc, Pcgc, Pacl,Pagdl, 
         # ------------------- Regime M ------------------- #
         if  x["C_v_acl"] < C_v_sat(x['Tacl'])  and x['C_v_agc'] > C_v_sat(Tfc):
             mliquid = M_H2O * (-Jwater + (Jv_a_in - Jv_a_out) * Hgc/Lgc)
-            ans1 = (mliquid * Lgc * nu_l(Tfc)/ (Hgc * rho_H2O(Tfc) * nu_l(Tfc))) ** (1/3)
+            ans1 = (mliquid * Lgc * nu_l(Tfc)/ (Hgc * rho_H2O(Tfc) * nu_g)) ** (1/3)
             s_agdl_inter = ans1 / (ans1 + 1)
             rhs = (-sigma(Tfc) * K0(epsilon_gdl, epsilon_c, epsilon_gdl)/nu_l(Tfc)* np.cos(theta_c_gdl)*(epsilon_gdl/K0(epsilon_gdl,epsilon_c, epsilon_gdl))**0.5)
             s_front_agdl = Hgdl - (0.35425 *s_agdl_inter ** 4 - 0.848 *  s_agdl_inter**5 + 0.6315 *  s_agdl_inter ** 6) * rhs / (M_H2O * -Jwater)
@@ -239,9 +240,9 @@ def calculate_flows(t, x ,operating_inputs, parameters, Pagc, Pcgc, Pacl,Pagdl, 
             s_front_agdl =Hgdl
         else:
             s_front_agdl = 0
-
+    
     # Cathode side
-    Jwater = Jv_cgdl_cgdl[-1] 
+    Jwater = Jv_cgdl_cgc
     if Jwater > 0: # CCL -> CGC
         # ------------------- Regime M ------------------- #
         if  x["C_v_ccl"] >= C_v_sat(x['Tccl']) and x['C_v_cgc'] <= C_v_sat(Tfc):
@@ -251,13 +252,13 @@ def calculate_flows(t, x ,operating_inputs, parameters, Pagc, Pcgc, Pacl,Pagdl, 
         elif x['C_v_cgc'] > C_v_sat(Tfc) and x['C_v_ccl'] > C_v_sat(x['Tccl']):
             s_front_cgdl = Hgdl
             mliquid = M_H2O * (Jwater + (Jv_c_in - Jv_c_out) * Hgc/Lgc)
-            ans1 = (mliquid * Lgc * nu_l(Tfc)/ (Hgc * rho_H2O(Tfc) * nu_l(Tfc))) ** (1/3)
+            ans1 = (mliquid * Lgc * nu_l(Tfc)/ (Hgc * rho_H2O(Tfc) * nu_g)) ** (1/3)
             s_cgdl_inter = ans1 / (ans1 + 1)
         else:
             s_front_cgdl = 0
     else: # CCL <- CGC
         mliquid = M_H2O * (Jwater + (Jv_c_in - Jv_c_out) * Hgc/Lgc)
-        ans1 = (mliquid * Lgc * nu_l(Tfc)/ (Hgc * rho_H2O(Tfc) * nu_l(Tfc))) ** (1/3)
+        ans1 = (mliquid * Lgc * nu_l(Tfc)/ (Hgc * rho_H2O(Tfc) * nu_g)) ** (1/3)
         s_cgdl_inter = ans1 / (ans1 + 1)
         # ------------------- Regime M ------------------- #
         if  x["C_v_ccl"] <= C_v_sat(x['Tccl'])  and x['C_v_cgc'] >= C_v_sat(Tfc):
@@ -269,6 +270,10 @@ def calculate_flows(t, x ,operating_inputs, parameters, Pagc, Pcgc, Pacl,Pagdl, 
         else:
             s_front_cgdl = Hgdl
 
+    s_front_agdl = max(0, min(Hgdl, s_front_agdl))
+    s_front_cgdl = max(0, min(Hgdl, s_front_cgdl))
+
+  
     #_____________________________________Liquid water flows (kg.m-2.s-1)__________________________________________
     if s_front_agdl == 0:
         Jl_agdl_agc = -s_front_agdl **3 / (1 - s_front_agdl) * rho_H2O(x["Tagdl_1"]) *(1/1298)  *4.8 * 1e-5/3e-4

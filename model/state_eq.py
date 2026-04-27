@@ -84,6 +84,7 @@ def dxdt_CGDL(dif, x,  epsilon_gdl, n_gdl, Hgdl, Hgc, Hcl, s_front_cgdl,
             else:
                 dif[f'ds_cgdl_{i+1} / dt'] = ((Jl_cgdl_cgdl[i - 1] - Jl_cgdl_cgdl[i]) / (Hgdl / n_gdl) + M_H2O * Sl_cgdl[i-1]) / (rho_H2O(x[f"Tcgdl_{i+1}"]) * epsilon_gdl)
         else: 
+            
             node_front = int((i+1) * s_front_cgdl / Hgdl)
             if i+1 >= node_front:
                 dif[f'ds_cgdl_{i+1} / dt']  = 0

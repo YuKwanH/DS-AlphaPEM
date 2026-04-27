@@ -66,6 +66,9 @@ class PEMFC:
 
                 # O(N) state mapping via cached index map
                 states = {n: x[i] for n, i in self._idx.items()}
+                for key in states:
+                        if "s_" in key:
+                                states[key] = max(0, min(1, states[key]))
 
                 inst_states = dif_eq_int_values(t=t, x=states, operating_inputs=self.operating_inputs, parameters=self.parameters)
                 massflow = calculate_flows(t, states, self.operating_inputs, self.parameters, **inst_states)
@@ -88,6 +91,7 @@ class PEMFC:
                 dxdt_N2(dif, **all_inst_values)
                 dxdt_PRD(dif=dif, **states, **all_inst_values)
 
+                
                 return np.fromiter(dif.values(), dtype=float, count=self._n_states)
 
         def compute_jac_sparsity(self, x0, t=0.0, eps=1e-7, n_probes=3, seed=0):
