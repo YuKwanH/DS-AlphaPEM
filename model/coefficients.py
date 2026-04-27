@@ -49,8 +49,8 @@ tau_hum = 5  # s. It is the humidifier time constant.
 Kp = 1e-6  # m².s-1.Pa-1. It is the proportional constant of the PD controller at the back pressure valve.
 Kd = 2e-7  # m².s-1.Pa-1. It is the derivative constant of the PD controller at the back pressure valve.
 C_D = 5e-2  # . It is the throttle discharge coefficient.
-Ksm_in = 1.0e-9  # kg.s-1.Pa-1. It is the supply manifold inlet orifice constant.
-Ksm_out = 1.0e-8  # kg.s-1.Pa-1. It is the supply manifold outlet orifice constant.
+Ksm_in = 1.0e-5  # kg.s-1.Pa-1. It is the supply manifold inlet orifice constant.
+Ksm_out = 1.0e-5  # kg.s-1.Pa-1. It is the supply manifold outlet orifice constant.
 Kem_in = Ksm_out  # kg.s-1.Pa-1. It is the exhaust manifold inlet orifice constant.
 Kem_out = Ksm_in  # kg.s-1.Pa-1. It is the exhaust manifold outlet orifice constant.
 

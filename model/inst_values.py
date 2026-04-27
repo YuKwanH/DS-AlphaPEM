@@ -178,15 +178,15 @@ def calculate_flows(t, x ,operating_inputs, parameters, Pagc, Pcgc, Pacl,Pagdl, 
     #________________________________________Dissolved water flows (mol.m-2.s-1)_______________________________________
     # Anode side
     J_lambda_mem_acl = 2.5 / 22 * iload / F * x['lambda_acl'] - \
-            rho_mem / M_eq * Dw(x['lambda_acl'], x['Tacl']) * (x['lambda_mem_1'] - x['lambda_acl']) / (Hmem/ n_mem + Hcl/10)
+                                            rho_mem / M_eq * Dw(x['lambda_acl'], x['Tacl']) * (x['lambda_mem_1'] - x['lambda_acl']) / (Hmem/ n_mem + Hcl/10)
     # Cathode side
     J_lambda_mem_ccl = 2.5 / 22 * iload / F * x['lambda_ccl'] - \
-        rho_mem / M_eq * Dw(x['lambda_ccl'], x['Tccl']) * (x['lambda_ccl'] - x[f'lambda_mem_{n_mem}']) / (Hmem/ n_mem + Hcl/5)
+                                            rho_mem / M_eq * Dw(x['lambda_ccl'], x['Tccl']) * (x['lambda_ccl'] - x[f'lambda_mem_{n_mem}']) / (Hmem/ n_mem + Hcl/5)
     # Membrane internal
     J_lambda_mem = [0] * (n_mem-1)
     for i in range(n_mem-1):
         J_lambda_mem[i] = 2.5 / 22 * iload / F * x[f'lambda_mem_{i+1}'] - \
-            rho_mem / M_eq * Dw(x[f'lambda_mem_{i+1}'], x[f"Tmem_{i+1}"]) * (x[f'lambda_mem_{i+2}'] - x[f'lambda_mem_{i+1}']) / (Hmem / n_mem)
+                                            rho_mem / M_eq * Dw(x[f'lambda_mem_{i+1}'], x[f"Tmem_{i+1}"]) * (x[f'lambda_mem_{i+2}'] - x[f'lambda_mem_{i+1}']) / (Hmem / n_mem)
 
     # _____________________________________________Vapor flows (mol.m-2.s-1)____________________________________________
     # Convective vapor flows
@@ -213,7 +213,7 @@ def calculate_flows(t, x ,operating_inputs, parameters, Pagc, Pcgc, Pacl,Pagdl, 
     # saturation front 
     nu_g =  1.881e-5
     ## Anode side
-    Jwater = Jv_agc_agdl
+    Jwater = np.mean(Jv_agc_agdl)
     if Jwater < 0: # AGC <- ACL
         # ------------------- Regime M ------------------- #
         if x["C_v_acl"] > C_v_sat(x["Tacl"]) and x["C_v_agc"] <= C_v_sat(Tfc):
@@ -242,7 +242,7 @@ def calculate_flows(t, x ,operating_inputs, parameters, Pagc, Pcgc, Pacl,Pagdl, 
             s_front_agdl = 0
     
     # Cathode side
-    Jwater = Jv_cgdl_cgc
+    Jwater = np.mean(Jv_cgdl_cgdl)
     if Jwater > 0: # CCL -> CGC
         # ------------------- Regime M ------------------- #
         if  x["C_v_ccl"] >= C_v_sat(x['Tccl']) and x['C_v_cgc'] <= C_v_sat(Tfc):
@@ -273,10 +273,9 @@ def calculate_flows(t, x ,operating_inputs, parameters, Pagc, Pcgc, Pacl,Pagdl, 
     s_front_agdl = max(0, min(Hgdl, s_front_agdl))
     s_front_cgdl = max(0, min(Hgdl, s_front_cgdl))
 
-  
     #_____________________________________Liquid water flows (kg.m-2.s-1)__________________________________________
     if s_front_agdl == 0:
-        Jl_agdl_agc = -s_front_agdl **3 / (1 - s_front_agdl) * rho_H2O(x["Tagdl_1"]) *(1/1298)  *4.8 * 1e-5/3e-4
+        Jl_agdl_agc =  -s_front_agdl **3 / (1 - s_front_agdl) * rho_H2O(x["Tagdl_1"]) *(1/1298)  *4.8 * 1e-5/3e-4
     else:
         Jl_agdl_agc = 0
     # Anode side
@@ -291,7 +290,7 @@ def calculate_flows(t, x ,operating_inputs, parameters, Pagc, Pcgc, Pacl,Pagdl, 
     
     # Cathode side
     if s_front_cgdl == Hgdl:
-        Jl_cgdl_cgc = s_cgdl_inter **3 / (1 - s_cgdl_inter) * rho_H2O(x["Tcgdl_{}".format(n_gdl)]) *(1/1298)  *4.8 * 1e-5/3e-4
+        Jl_cgdl_cgc = -s_cgdl_inter **3 / (1 - s_cgdl_inter) * rho_H2O(x["Tcgdl_{}".format(n_gdl)]) *(1/1298)  *4.8 * 1e-5/3e-4
     else:
         Jl_cgdl_cgc = 0
     Jl_cgdl_cgdl = [0] * (n_gdl - 1)
