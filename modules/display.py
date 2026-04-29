@@ -2,20 +2,21 @@ import matplotlib.pyplot as plt
 from config.settings import *
 from model.coefficients import *
 
-def display(solution, model):
+
+def build_profile_figure(solution, model, t_index=-1):
     profile_1d = {"v": [], "O2": [], "H2": [], "saturation": [], "lambda": [], "T": []}
     for name in nodes_names_vp:
-        profile_1d["v"].append(solution.y[model.variable_names.index(name), -1])
+        profile_1d["v"].append(solution.y[model.variable_names.index(name), t_index])
     for name in nodes_name_O2:
-        profile_1d["O2"].append(solution.y[model.variable_names.index(name), -1])
+        profile_1d["O2"].append(solution.y[model.variable_names.index(name), t_index])
     for name in nodes_names_H2:
-        profile_1d["H2"].append(solution.y[model.variable_names.index(name), -1])
+        profile_1d["H2"].append(solution.y[model.variable_names.index(name), t_index])
     for name in nodes_names_s:
-        profile_1d["saturation"].append(solution.y[model.variable_names.index(name), -1])
+        profile_1d["saturation"].append(solution.y[model.variable_names.index(name), t_index])
     for name in nodes_lambda:
-        profile_1d["lambda"].append(solution.y[model.variable_names.index(name), -1])
+        profile_1d["lambda"].append(solution.y[model.variable_names.index(name), t_index])
     for name in nodes_T:
-        profile_1d["T"].append(solution.y[model.variable_names.index(name), -1])
+        profile_1d["T"].append(solution.y[model.variable_names.index(name), t_index])
 
     profile_panels = [
         ("v", "Vapor Pressure $(mol/m^3)$"),
@@ -55,5 +56,10 @@ def display(solution, model):
         ax.set_visible(False)
 
     axes_flat[0].legend()
-    plt.tight_layout()
+    fig.tight_layout()
+    return fig
+
+
+def display(solution, model):
+    build_profile_figure(solution, model)
     plt.show()
