@@ -2,7 +2,7 @@ from model.coefficients import *
 from model.inst_values import *
 from model.state_eq import *
 from model.kinetic_eq import *
-from scipy.sparse import lil_matrix, csr_matrix
+
 
 class PEMFC:
 
@@ -63,18 +63,13 @@ class PEMFC:
 
                 # State gradients dict (pre-cached keys; values default to 0.0)
                 dif = dict.fromkeys(self._dif_keys, 0.0)
-
-                # O(N) state mapping via cached index map
                 states = {n: x[i] for n, i in self._idx.items()}
-                for key in states:
-                        if "s_" in key:
-                                states[key] = max(0, min(1, states[key]))
 
                 inst_states = dif_eq_int_values(t=t, x=states, operating_inputs=self.operating_inputs, parameters=self.parameters)
-                massflow = calculate_flows(t, states, self.operating_inputs, self.parameters, **inst_states)
 
                 # Merge once per dxdt call so each dxdt_X site unpacks one dict.
-                all_inst_states = {**inst_states, **self.parameters, **massflow}
+                all_inst_states = {**self.parameters, **inst_states, 
+                                             **calculate_flows(t, states, self.operating_inputs, self.parameters, **inst_states)}
                 all_inst_values = {**all_inst_states, **self.operating_inputs}
 
                 dxdt_AGC(dif, **all_inst_values)
@@ -106,17 +101,16 @@ class PEMFC:
                 for j in range(len(sol.t)):  # For each time...
                         t = sol.t[j]
                         # ... recovery of i_fc.
-                        i_fc = self.operating_inputs["current_density"](self.variables['t'][j])
-                        last_solver_variables = {key: self.variables[key][j] for key in self.variable_names}
-                        inst_states_t = dif_eq_int_values(t=t, x = last_solver_variables, operating_inputs = self.operating_inputs, parameters = self.parameters)
-                        flows_recovery = calculate_flows(t=t, x = last_solver_variables, operating_inputs = self.operating_inputs, parameters = self.parameters, **inst_states_t)
+                        states_t = {key: self.variables[key][j] for key in self.variable_names}
+                        inst_states_t = dif_eq_int_values(t=t, x = states_t, operating_inputs = self.operating_inputs, parameters = self.parameters)
+                        flux_t = calculate_flows(t=t, x = states_t, operating_inputs = self.operating_inputs, parameters = self.parameters, **inst_states_t)
                         for index, key in enumerate(self.flux_names):
-                                self.fluxes[key].append(flows_recovery[key])
+                                self.fluxes[key].append(flux_t[key])
                         #  recovery of Ucell.
-                        Rmem_t, Rccl_t, Racl_t = Rproton(last_solver_variables, self.parameters)
-                        Ueq_t = Ueq(last_solver_variables)
-                        eta_c_t = last_solver_variables["eta_c"] #eta_ccl(last_solver_variables, self.operating_inputs, self.parameters)
-                        f_drop_t = fdrop(last_solver_variables, self.operating_inputs, self.parameters)
+                        Rmem_t, Rccl_t, Racl_t = Rproton(states_t, self.parameters)
+                        Ueq_t = Ueq(states_t)
+                        eta_c_t = states_t["eta_c"] #eta_ccl(last_solver_variables, self.operating_inputs, self.parameters)
+                        f_drop_t = fdrop(states_t, self.operating_inputs, self.parameters)
                         if f_drop_t == 1:
                                 self.echem_traj["eta_act"].append(eta_c_t)
                                 self.echem_traj["eta_conc"].append(0)
@@ -124,15 +118,15 @@ class PEMFC:
                                 eta_conc_t = eta_c_t * (1 - f_drop_t)/f_drop_t
                                 eta_act_t = eta_c_t - eta_conc_t
                                 self.echem_traj["eta_act"].append(eta_act_t)
-                                self.echem_traj["eta_conc"].append(eta_conc_t)
-                        self.echem_traj["i_fc"].append(i_fc)
+                                self.echem_traj["eta_conc"].append(eta_conc_t)  
+                        self.echem_traj["i_fc"].append(inst_states_t["i_fc"])
                         self.echem_traj["fdrop"].append(f_drop_t)
                         self.echem_traj["Ueq"].append(Ueq_t)
                         self.echem_traj["Rmem"].append(Rmem_t)
                         self.echem_traj["Rccl"].append(Rccl_t)
                         self.echem_traj["Racl"].append(Racl_t)
-                        self.echem_traj["Ucell"].append(Ucell(t=t, variables=last_solver_variables, operating_inputs=self.operating_inputs, parameters=self.parameters))
-                        PRD_t = [last_solver_variables[f'S_N_ccl_{i}'] for i in range(1, self.parameters['n_group_pt'] + 1)] 
+                        self.echem_traj["Ucell"].append(Ucell(t=t, variables=states_t, operating_inputs=self.operating_inputs, parameters=self.parameters))
+                        PRD_t = [states_t[f'S_N_ccl_{i}'] for i in range(1, self.parameters['n_group_pt'] + 1)] 
                         ECSA_t = getECSA(PRD_t, self.parameters['r_m']) / getECSA(self.parameters['prd0'], self.parameters['r_m'])
                         self.echem_traj["S_N"].append(ECSA_t)
                         self.echem_traj["PRD"].append(PRD_t)
@@ -141,4 +135,5 @@ class PEMFC:
         def _flush(self):
                 for key in self.variables.keys():
                         self.variables[key] = []
+
 

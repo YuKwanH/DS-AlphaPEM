@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 from config.initialize import *
 from config.settings import *
-from model.dualscale import PEMFC
+from model.model import PEMFC
 from scipy.integrate import solve_ivp
 from modules.display import display
 

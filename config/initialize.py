@@ -11,7 +11,7 @@ operating_inputs = {'current_density': lambda x: 0.1e4, 'Tfc': 333.15,
 accessible_physical_parameters = {'Aact': 31e-4, 'Hmem': 1.2e-5, 'Hgc': 8e-4, 'Wgc': 4e-4, 'Lgc': 1.287} #m
 
 current_parameters = {'t_step': (0, 3600, 100, 1.5), 'i_step': (0.5e4, 1.5e4),
-                                        'delta_pola': (30, 30, 0.1e4, 60), 'i_max_pola': 1.65e4, # 50A/30e-4
+                                        'delta_pola': (30, 30, 0.1e4, 60), 'i_max_pola': 1.65e4, # 50A
                                         'i_EIS': 1.0e4, 'ratio_EIS': 0.05, 't_EIS': 15, 'f_EIS': (-3, 5, 90, 50)}
 
 undetermined_physical_parameters = {'epsilon_gdl': 0.55, "epsilon_cl": 0.3,
