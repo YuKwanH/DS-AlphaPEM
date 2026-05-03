@@ -42,37 +42,50 @@ def render(state):
 
     if profile_kind == "Constant":
         pcfg["i_const"] = st.number_input(
-            "Current density (A/cm^2)",
-            value=float(pcfg.get("i_const", 0.4)),
-            min_value=0.0, step=0.05, format="%.3f",
+            "Current density (A/m²)",
+            value=float(pcfg.get("i_const", 4000.0)),
+            min_value=0.0, step=500.0, format="%.4g",
             key="opt_i_const",
         )
 
     elif profile_kind == "Step":
-        c1, c2 = st.columns(2)
-        pcfg["i_low"] = c1.number_input(
-            "i_low (A/cm^2)", value=float(pcfg.get("i_low", 0.5)),
-            min_value=0.0, step=0.05, format="%.3f", key="opt_i_low",
+        st.caption(
+            "Periodic tanh-smoothed square load — defaults match "
+            "`simulation/control/square load.ipynb`."
         )
-        pcfg["i_high"] = c2.number_input(
-            "i_high (A/cm^2)", value=float(pcfg.get("i_high", 1.5)),
-            min_value=0.0, step=0.05, format="%.3f", key="opt_i_high",
+        c1, c2 = st.columns(2)
+        pcfg["step_tstart"] = c1.number_input(
+            "Period start tstart (s)", value=float(pcfg.get("step_tstart", 0.0)),
+            step=0.5, format="%.2f", key="opt_step_tstart",
+        )
+        pcfg["step_tend"] = c2.number_input(
+            "Period end tend (s)", value=float(pcfg.get("step_tend", 6.0)),
+            min_value=0.1, step=0.5, format="%.2f", key="opt_step_tend",
         )
         c3, c4 = st.columns(2)
-        pcfg["t_switch"] = c3.number_input(
-            "Switch time (s)", value=float(pcfg.get("t_switch", 5.0)),
-            min_value=0.0, step=1.0, format="%.2f", key="opt_t_switch",
+        pcfg["i_low"] = c3.number_input(
+            "i_low (A/m²)", value=float(pcfg.get("i_low", 20.0)),
+            min_value=0.0, step=10.0, format="%.4g", key="opt_i_low",
         )
-        pcfg["smoothing"] = c4.number_input(
-            "Ramp smoothing", value=float(pcfg.get("smoothing", 1.5)),
-            min_value=0.05, step=0.1, format="%.2f", key="opt_smoothing",
+        pcfg["i_high"] = c4.number_input(
+            "i_high (A/m²)", value=float(pcfg.get("i_high", 12000.0)),
+            min_value=0.0, step=500.0, format="%.4g", key="opt_i_high",
+        )
+        c5, c6 = st.columns(2)
+        pcfg["tau_switch"] = c5.number_input(
+            "Ramp begin tau_switch (s)", value=float(pcfg.get("tau_switch", 1.0)),
+            min_value=0.0, step=0.1, format="%.2f", key="opt_tau_switch",
+        )
+        pcfg["t_switch"] = c6.number_input(
+            "Ramp duration t_switch (s)", value=float(pcfg.get("t_switch", 3.0)),
+            min_value=0.05, step=0.1, format="%.2f", key="opt_t_switch",
         )
 
     elif profile_kind == "Polarization":
         c1, c2 = st.columns(2)
         pcfg["i_max"] = c1.number_input(
-            "i_max (A/cm^2)", value=float(pcfg.get("i_max", 1.65)),
-            min_value=0.05, step=0.05, format="%.3f", key="opt_i_max",
+            "i_max (A/m²)", value=float(pcfg.get("i_max", 16500.0)),
+            min_value=50.0, step=500.0, format="%.4g", key="opt_i_max",
         )
         pcfg["n_steps"] = c2.number_input(
             "Number of points", value=int(pcfg.get("n_steps", 30)),
@@ -87,8 +100,8 @@ def render(state):
     elif profile_kind == "EIS":
         c1, c2 = st.columns(2)
         pcfg["i_dc"] = c1.number_input(
-            "i_DC (A/cm^2)", value=float(pcfg.get("i_dc", 1.0)),
-            min_value=0.05, step=0.05, format="%.3f", key="opt_i_dc",
+            "i_DC (A/m²)", value=float(pcfg.get("i_dc", 10000.0)),
+            min_value=50.0, step=500.0, format="%.4g", key="opt_i_dc",
         )
         pcfg["ratio"] = c2.number_input(
             "AC ratio", value=float(pcfg.get("ratio", 0.05)),
@@ -182,21 +195,22 @@ def build_profile_func(state):
     Aact = state["params"].get("Aact", 31e-4)
 
     if pk == "Constant":
-        return profiles.constant(pcfg.get("i_const", 0.4))
+        return profiles.constant(pcfg.get("i_const", 4000.0))
     if pk == "Step":
         return profiles.step(
-            pcfg.get("i_low", 0.5), pcfg.get("i_high", 1.5),
-            pcfg.get("t_switch", 5.0), pcfg.get("smoothing", 1.5),
+            pcfg.get("step_tstart", 0.0), pcfg.get("step_tend", 6.0),
+            pcfg.get("i_low", 20.0), pcfg.get("i_high", 12000.0),
+            pcfg.get("tau_switch", 1.0), pcfg.get("t_switch", 3.0),
         )
     if pk == "Polarization":
         return profiles.polarization_ramp(
-            pcfg.get("i_max", 1.65),
+            pcfg.get("i_max", 16500.0),
             int(pcfg.get("n_steps", 30)),
             pcfg.get("t_per_step", 60.0),
         )
     if pk == "EIS":
         return profiles.eis(
-            pcfg.get("i_dc", 1.0), pcfg.get("ratio", 0.05),
+            pcfg.get("i_dc", 10000.0), pcfg.get("ratio", 0.05),
             pcfg.get("frequency", 1.0),
         )
     if pk == "AST cycling":
@@ -207,7 +221,7 @@ def build_profile_func(state):
             pcfg.get("smoothing", 4.0),
             Aact,
         )
-    return profiles.constant(0.4)
+    return profiles.constant(4000.0)
 
 
 def _draw_profile_preview(profile_func, t_span):
@@ -215,9 +229,9 @@ def _draw_profile_preview(profile_func, t_span):
         return
     ts, ys = profiles.sample(profile_func, t_span, n=300)
     fig, ax = plt.subplots(figsize=(4.5, 1.6))
-    ax.plot(ts, np.asarray(ys) / 1e4, linewidth=1.4)
+    ax.plot(ts, np.asarray(ys), linewidth=1.4)
     ax.set_xlabel("t (s)")
-    ax.set_ylabel("i (A/cm$^2$)")
+    ax.set_ylabel("i (A/m$^2$)")
     ax.grid(True, alpha=0.3)
     ax.set_title("Current-density preview", fontsize=10)
     fig.tight_layout()

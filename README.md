@@ -9,29 +9,27 @@ A 1D PEMFC simulation framework for the 300W Baltic stack, providing both **stat
 
 ## Quick Start — Streamlit GUI
 
-A three-section dashboard (parameters · simulator options · results + save/download) wraps the models. To launch it:
+A three-section dashboard (parameters · simulator options · results + save/download) wraps the models. **Launch from the same Python environment used for the notebooks** — this matters because the dual-scale model is sensitive to scipy/numpy versions, and the notebooks were validated against Anaconda's scipy 1.13 / numpy 1.26. Newer scipy ≥ 1.15 raises hard errors on transient NaNs that older scipy tolerates.
 
-**Windows (cmd):**
+**Recommended — Anaconda (matches notebook env, BDF works at low `i_low`):**
+```cmd
+cd D:\PEMFC\MFC2024
+C:\ProgramData\anaconda3\python.exe -m streamlit run gui\app.py
+```
+
+**Alternative — project venv (works for most profiles; for the Step profile at the notebook's low `i_low = 0.002 A/cm²` you may need to switch the solver to LSODA in §2):**
 ```cmd
 cd D:\PEMFC\MFC2024
 .venv\Scripts\streamlit.exe run gui\app.py
 ```
 
-**Windows (PowerShell):**
-```powershell
-Set-Location D:\PEMFC\MFC2024
-.\.venv\Scripts\streamlit.exe run gui\app.py
-```
-
-**macOS / Linux (or Windows with venv activated):**
-```bash
-cd /path/to/MFC2024
-streamlit run gui/app.py
-```
-
 The browser opens at `http://localhost:8501`. First-time setup, if Streamlit isn't installed yet:
 
 ```cmd
+:: Anaconda
+C:\ProgramData\anaconda3\python.exe -m pip install streamlit openpyxl
+
+:: ...or the venv
 .venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 

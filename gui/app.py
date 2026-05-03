@@ -38,12 +38,22 @@ def _ensure_state():
     st.session_state.setdefault("profile_kind", "Constant")
     st.session_state.setdefault("profile_cfg", {})
     st.session_state.setdefault("t_start", 0.0)
-    st.session_state.setdefault("t_end", 30.0)
+    st.session_state.setdefault("t_end", 20.0)
     st.session_state.setdefault("max_step", 0.1)
     st.session_state.setdefault("method", "BDF")
     st.session_state.setdefault("visible_groups", panel_params.DEFAULT_VISIBLE)
     st.session_state.setdefault("last_result", None)
     st.session_state.setdefault("running", False)
+
+    # One-time migration: profile_cfg used to store currents in A/cm^2;
+    # values < 100 are almost certainly stale A/cm^2 entries that need to
+    # be rescaled to A/m^2 (the current convention).
+    if not st.session_state.get("_units_A_per_m2"):
+        pcfg = st.session_state["profile_cfg"]
+        for key in ("i_const", "i_low", "i_high", "i_max", "i_dc"):
+            if key in pcfg and pcfg[key] < 100:
+                pcfg[key] = float(pcfg[key]) * 1e4
+        st.session_state["_units_A_per_m2"] = True
 
 
 def _trigger_run():
