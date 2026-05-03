@@ -9,34 +9,61 @@ A 1D PEMFC simulation framework for the 300W Baltic stack, providing both **stat
 
 ## Quick Start — Streamlit GUI
 
-A three-section dashboard (parameters · simulator options · results + save/download) wraps the models. **Launch from the same Python environment used for the notebooks** — this matters because the dual-scale model is sensitive to scipy/numpy versions, and the notebooks were validated against Anaconda's scipy 1.13 / numpy 1.26. Newer scipy ≥ 1.15 raises hard errors on transient NaNs that older scipy tolerates.
+A three-section dashboard (parameters · simulator options · results + save/download) wraps the models. The instructions below work on **Windows, macOS, and Linux**, with either a `venv` or `conda` environment.
 
-**Recommended — Anaconda (matches notebook env, BDF works at low `i_low`):**
-```cmd
-cd D:\PEMFC\MFC2024
-C:\ProgramData\anaconda3\python.exe -m streamlit run gui\app.py
+### 1. Clone the repository
+
+```bash
+git clone <this-repo-url> MFC2024
+cd MFC2024
 ```
 
-**Alternative — project venv (works for most profiles; for the Step profile at the notebook's low `i_low = 0.002 A/cm²` you may need to switch the solver to LSODA in §2):**
-```cmd
-cd D:\PEMFC\MFC2024
-.venv\Scripts\streamlit.exe run gui\app.py
+### 2. Create a Python environment
+
+Requires **Python ≥ 3.10**. Pick whichever flow matches your setup:
+
+**Option A — `venv` (uses the Python on your `PATH`):**
+```bash
+# create
+python -m venv .venv
+
+# activate — Windows (cmd)
+.venv\Scripts\activate.bat
+# activate — Windows (PowerShell)
+.venv\Scripts\Activate.ps1
+# activate — macOS / Linux
+source .venv/bin/activate
+
+# install
+pip install -r requirements.txt
 ```
 
-The browser opens at `http://localhost:8501`. First-time setup, if Streamlit isn't installed yet:
-
-```cmd
-:: Anaconda
-C:\ProgramData\anaconda3\python.exe -m pip install streamlit openpyxl
-
-:: ...or the venv
-.venv\Scripts\python.exe -m pip install -r requirements.txt
+**Option B — `conda` (recommended if you also use the Jupyter notebooks):**
+```bash
+conda create -n mfc python=3.11
+conda activate mfc
+pip install -r requirements.txt
 ```
 
-**Layout:**
+### 3. Run the GUI
+
+From the repository root, with the environment activated:
+
+```bash
+streamlit run gui/app.py
+```
+
+A browser tab opens at `http://localhost:8501`. Stop the server with **Ctrl + C** in the terminal.
+
+### Layout
+
 - **§1 Parameters** — every entry from `config/initialize.py`, grouped by region (Operating · GC · GDL · CL · MEM · Saturation · Numerics) with a region filter.
 - **§2 Options** — model variant (Static / Dynamic / Dual-scale), test profile (Constant · Step · Polarization · EIS · AST cycling), time span, solver, and mesh.
 - **§3 Results** — six tabs (Cell performance · Spatial profile · Manifolds · Water content · Degradation · Custom variable picker), plus a save/download box for CSV / Excel / NumPy export.
+
+### Note on SciPy versions
+
+The dual-scale model produces a transient NaN during ramp transitions that older `scipy` (< 1.15) silently tolerates, while newer `scipy` raises a hard error during the BDF Jacobian factorisation. The GUI handles this automatically: if a BDF run fails with the NaN error, it retries with LSODA and the status strip in §3 reads `<variant> → LSODA fallback`. To avoid the fallback entirely, pin `scipy<1.15` in your environment (the notebooks were validated against `scipy 1.13` / `numpy 1.26`).
 
 ---
 

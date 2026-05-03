@@ -184,7 +184,7 @@ def flourideReleaseRate(MT, U, Tmem, PO2_ca):
     :return:
     """
     # Constant
-    A_1 = 1.2e-12  # Fitted constant (gram h-1cm-2)
+    A_1 = 1.2e-14  # Fitted constant (gram h-1cm-2)
     alpha_eq = 0.53  # Equivalent transfer coefficient
     e_M0 = 2e-5  # The initial membrane thickness (m)
     E_a = 75e3  # The equivalent activation energy (J/mol)
