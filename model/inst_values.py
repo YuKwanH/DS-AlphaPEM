@@ -11,7 +11,7 @@ def dif_eq_int_values(t, x, operating_inputs, parameters):
     iload = operating_inputs['current_density'](t)
     C_v_agc, C_v_cgc = x['C_v_agc'], x['C_v_cgc']
     C_H2_agc,C_O2_cgc, C_N2 = x['C_H2_agc'], x['C_O2_cgc'], x['C_N2']   
-    Paem, Pcsm, Pasm, Pcem = x['Paem'], x['Pcsm'], x['Pasm'], x['Pcem']
+    Pasm, Paem, Pcsm, Pcem =  x['Pasm'], x['Paem'], x['Pcsm'], x['Pcem']
     Phi_aem, Phi_csm, Phi_asm, Phi_cem = x['Phi_aem'], x['Phi_csm'], x['Phi_asm'], x['Phi_cem']
     Tfc, Phi_c_des, Phi_a_des = operating_inputs['Tfc'], operating_inputs['Phi_c_des'], operating_inputs['Phi_a_des']
     Sa, Sc = operating_inputs['Sa'], operating_inputs['Sc']
@@ -55,14 +55,15 @@ def dif_eq_int_values(t, x, operating_inputs, parameters):
     y_cem = ((Pcem - Phi_cem * Psat(Tfc) - C_N2 * R * Tfc) / 
              (Pcem - Phi_cem * Psat(Tfc)))
     # Molar masses
-    Maem = Phi_aem * Psat(Tfc) / Paem * M_H2O + (1 - Phi_aem * Psat(Tfc) / Paem) * M_H2
     Masm = Phi_asm * Psat(Tfc) / Pasm * M_H2O + (1 - Phi_asm * Psat(Tfc) / Pasm) * M_H2
-    Mcem = (Phi_cem * Psat(Tfc) / Pcem * M_H2O + 
-                    y_cem * (1 - Phi_cem * Psat(Tfc) / Pcem) * M_O2 + 
-                    (1 - y_cem) * (1 - Phi_cem * Psat(Tfc) / Pcem) * M_N2)
+    Maem = Phi_aem * Psat(Tfc) / Paem * M_H2O + (1 - Phi_aem * Psat(Tfc) / Paem) * M_H2
+
     Mcsm = (Phi_csm * Psat(Tfc) / Pcsm * M_H2O + 
                     yO2_ext * (1 - Phi_csm * Psat(Tfc) / Pcsm) * M_O2 + 
                     (1 - yO2_ext) * (1 - Phi_csm * Psat(Tfc) / Pcsm) * M_N2)
+    Mcem = (Phi_cem * Psat(Tfc) / Pcem * M_H2O + 
+                    y_cem * (1 - Phi_cem * Psat(Tfc) / Pcem) * M_O2 + 
+                    (1 - y_cem) * (1 - Phi_cem * Psat(Tfc) / Pcem) * M_N2)
     
     # eletrochemical kinetics
     i_fc = operating_inputs['current_density'](t)
@@ -218,7 +219,7 @@ def calculate_flows(t, x ,operating_inputs, parameters, Pagc, Pcgc, Pacl,Pagdl, 
         # ------------------- Regime M ------------------- #
         if x["C_v_acl"] > C_v_sat(x["Tacl"]) and x["C_v_agc"] <= C_v_sat(Tfc):
             s_agdl_avg = np.mean([x[f's_agdl_{i}'] for i in range(1, n_gdl + 1)])
-            s_front_agdl = -(C_v_sat(Tfc) - x["C_v_agc"]) * (Dc_eff(np.mean(s_agdl_avg),epsilon_gdl,Pa_des, Tfc,epsilon_c,epsilon_gdl) / Jwater)
+            s_front_agdl = -(C_v_sat(Tfc) - x["C_v_agc"]) * (Da_eff(np.mean(s_agdl_avg),epsilon_gdl,Pa_des, Tfc,epsilon_c,epsilon_gdl) / Jwater)
         # ------------------- Regime L ------------------- #
         elif x["C_v_agc"] > C_v_sat(Tfc) and x["C_v_acl"] > C_v_sat(x['Tacl']):
             mliquid = M_H2O * (-Jwater + (Jv_a_in - Jv_a_out) * Hgc/Lgc)

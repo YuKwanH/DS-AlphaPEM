@@ -39,6 +39,8 @@ def build_profile_figure(solution, model, t_index=-1):
         if profile_key == "v":
             ax.hlines(C_v_sat(operating_inputs['Tfc']), xmin=plot_nodes[0], xmax=plot_nodes[-1], colors='tab:gray', linestyles='--', label="Saturation Vapor Pressure")
         if profile_key == "saturation":
+            ax.axvline(x=borders[1]+model.fluxes["s_front_agdl"][-1], color='r', linestyle='--', label="front")
+            ax.axvline(x=borders[5]+model.fluxes["s_front_cgdl"][-1], color='r', linestyle='--', label="front")
             ax.set_ylim(-0.05, 1.05)
         if profile_key == "lambda":
             ax.set_xlim(borders[2], borders[5])

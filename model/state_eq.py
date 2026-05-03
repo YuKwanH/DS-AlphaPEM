@@ -112,12 +112,12 @@ def dxdt_MEM(dif, x, epsilon_mc, Hcl, Hmem,n_mem, Ucell,
                          Sp_ccl, S_sorp_acl, S_sorp_ccl, **kwargs):
 
     # MEM dynamics 
-    dif['dlambda_acl / dt']         = M_eq / (rho_mem * epsilon_mc) * (-J_lambda_mem_acl /  (Hmem/n_mem + Hcl/2) + S_sorp_acl)
-    dif['dlambda_ccl / dt']         = M_eq / (rho_mem * epsilon_mc) * (J_lambda_mem_ccl /  (Hmem/n_mem + Hcl/2) + S_sorp_ccl + Sp_ccl)
-    dif['dlambda_mem_1 / dt'] = M_eq / rho_mem * (J_lambda_mem_acl - J_lambda_mem[0]) / (Hmem/n_mem + Hcl/2)
+    dif['dlambda_acl / dt']         = M_eq / (rho_mem * epsilon_mc) * (-J_lambda_mem_acl /  (Hmem/n_mem + Hcl) + S_sorp_acl)
+    dif['dlambda_ccl / dt']         = M_eq / (rho_mem * epsilon_mc) * (J_lambda_mem_ccl /  (Hmem/n_mem + Hcl) + S_sorp_ccl + Sp_ccl)
+    dif['dlambda_mem_1 / dt'] = M_eq / rho_mem * (J_lambda_mem_acl - J_lambda_mem[0]) / (Hmem/n_mem + Hcl)
     for i in range(2, n_mem):
         dif[f'dlambda_mem_{i} / dt'] = M_eq / rho_mem * (J_lambda_mem[i-2] - J_lambda_mem[i-1]) / (Hmem/n_mem)
-    dif[f'dlambda_mem_{n_mem} / dt'] = M_eq / rho_mem * (J_lambda_mem[-1] - J_lambda_mem_ccl) / (Hmem/n_mem + Hcl/2)
+    dif[f'dlambda_mem_{n_mem} / dt'] = M_eq / rho_mem * (J_lambda_mem[-1] - J_lambda_mem_ccl) / (Hmem/n_mem + Hcl)
     for i in range(n_mem):
             if i == 0:
                 dif[f"dTmem_{i+1} / dt"] = ((JT_acl_mem - JT_mem[0]) / (Hmem/n_mem + Hcl/3) + Sre_mem[i])/(Cp_mem * rho_mem)

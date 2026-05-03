@@ -14,7 +14,7 @@ gamma_H2 = 1.404  # . It is the heat capacity ratio of H2 at 100°C.
 # External environmental parameters
 Text = 298  # K. It is the outside temperature.
 Pext = 101325  # Pa. It is the outside pressure.
-Phi_ext = 0.4  # It is the outside relative humidity.
+Phi_ext = 0.2  # It is the outside relative humidity.
 yO2_ext = 0.2095  # . It is the molar fraction of O2 in dry air.
 
 # Model parameters for the cell
@@ -41,20 +41,21 @@ Eact = 73.2e3  # J.mol-1. It is the activation energy.
 #   Physical parameters
 n_cell = 22 # . It is the number of cell in the stack.
 # Auxiliary system parameters
-Vsm = 1e-5  # m3. It is the supply manifold volume.
-Vem = 1e-5  # m3. It is the exhaust manifold volume.
-A_T = 1.18e-3  # m². It is the exhaust manifold throttle area
+Vsm = 5e-5  # m3. It is the supply manifold volume.
+Vem = 5e-5  # m3. It is the exhaust manifold volume.
 tau_cp = 1  # s. It is the air compressor time constant.
-tau_hum = 5  # s. It is the humidifier time constant.
-Kp = 1e-6  # m².s-1.Pa-1. It is the proportional constant of the PD controller at the back pressure valve.
-Kd = 2e-7  # m².s-1.Pa-1. It is the derivative constant of the PD controller at the back pressure valve.
-C_D = 5e-2  # . It is the throttle discharge coefficient.
-Ksm_in = 1.0e-5  # kg.s-1.Pa-1. It is the supply manifold inlet orifice constant.
-Ksm_out = 1.0e-5  # kg.s-1.Pa-1. It is the supply manifold outlet orifice constant.
-Kem_in = Ksm_out  # kg.s-1.Pa-1. It is the exhaust manifold inlet orifice constant.
-Kem_out = Ksm_in  # kg.s-1.Pa-1. It is the exhaust manifold outlet orifice constant.
+tau_hum = 3  # s. It is the humidifier time constant.
+A_T = 1.26e-4  # m². It is the exhaust manifold throttle area
 
-# Chemical constant
+Kp = 1e-3  # m².s-1.Pa-1. It is the proportional constant of the PD controller at the throttle
+Kd = 1e-6  # m².s-1.Pa-1. It is the derivative constant of the PD controller at the throttle
+C_D = 0.6  # . It is the throttle discharge coefficient.
+Ksm_in = 2.0e-7  # kg.s-1.Pa-1. It is the supply manifold inlet orifice constant.
+Ksm_out = 2.0e-7  # kg.s-1.Pa-1. It is the supply manifold outlet orifice constant.
+Kem_in = 2.0e-7  # kg.s-1.Pa-1. It is the exhaust manifold inlet orifice constant.
+Kem_out = 1.e-7  # kg.s-1.Pa-1. It is the exhaust manifold outlet orifice constant.
+
+# Chemical constants for Pt surface reactions
 k1 = 3e-18
 k1_ref = 1e-22
 k2 = 1e-18
@@ -92,8 +93,6 @@ Da = lambda P, T: 1.644e-4 * (T / 298.15) ** 2.334 * (101325 / P)  # diffusion c
 Dc = lambda P, T: 3.242e-5 * (T / 298.15) ** 2.334 * (101325 / P)  # diffusion coefficient at the cathode
 h_a = lambda P, T, Wgc, Hgc: (0.9247 * np.log(Wgc / Hgc) + 2.3787) * Da(P, T) / Hgc  # effective convective-conductive mass transfer coefficient at the anode
 h_c = lambda P, T, Wgc, Hgc: (0.9247 * np.log(Wgc / Hgc) + 2.3787) * Dc(P, T) / Hgc  # effective convective-conductive mass transfer coefficient at the cathode
-sigma_old = lambda T: 235.8e-3 * ((647.15 - T) / 647.15) ** 1.256 * (1 - 0.625 * (647.15 - T) / 647.15)  # water surface tension (old version)
-K0_old = lambda epsilon, epsilon_c: epsilon / (8 * np.log(epsilon) ** 2) * (epsilon - 0.11) ** (0.785 + 2) * 4.6e-6 ** 2 / ((1 - 0.11) ** 0.785 * ((0.785 + 1) * epsilon - 0.11) ** 2) * np.exp(-3.60 * epsilon_c)  # intrinsic permeability (old version)
 nu_l = lambda T: (2.414 * 10 ** (-5 + 247.8 / (T - 140.0))) / rho_H2O(T)  # liquid water kinematic viscosity
 sigma = lambda T: 235.8e-3 * ((647.15 - T) / 647.15) ** 1.256 * (1 - 0.625 * (647.15 - T) / 647.15)  # water surface tension
 

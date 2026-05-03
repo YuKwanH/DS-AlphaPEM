@@ -107,7 +107,7 @@ def expand_profile_on_nodes(profile_key, compact_values):
             expanded_values.append(compact_values[idx])
             idx += 1
         else:
-            expanded_values.append(0.0)
+            expanded_values.append(np.nan)
     return expanded_values
 
 # Function to get plotting properties from condition key

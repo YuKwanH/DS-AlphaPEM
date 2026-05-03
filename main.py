@@ -9,6 +9,6 @@ from modules.display import display
 if __name__ == "__main__":
 
     model = PEMFC(param=parameters, operating_inputs=operating_inputs,
-                    variable_names=solver_variable_names, flux_names=solver_flux_names)
+                               variable_names=solver_variable_names, flux_names=solver_flux_names)
     solution_init = init_x(operating_inputs, parameters)
     

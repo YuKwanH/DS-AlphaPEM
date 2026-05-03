@@ -131,7 +131,6 @@ class PEMFC:
                         self.echem_traj["S_N"].append(ECSA_t)
                         self.echem_traj["PRD"].append(PRD_t)
 
-
         def _flush(self):
                 for key in self.variables.keys():
                         self.variables[key] = []
