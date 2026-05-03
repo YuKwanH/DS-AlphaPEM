@@ -41,7 +41,7 @@ def build_profile_figure(solution, model, t_index=-1):
         if profile_key == "saturation":
             ax.axvline(x=borders[1]+model.fluxes["s_front_agdl"][-1], color='r', linestyle='--', label="front")
             ax.axvline(x=borders[5]+model.fluxes["s_front_cgdl"][-1], color='r', linestyle='--', label="front")
-            ax.set_ylim(-0.05, 1.05)
+            ax.set_ylim(np.min(profile_1d["saturation"])*0.9, np.max(profile_1d["saturation"])*1.1)
         if profile_key == "lambda":
             ax.set_xlim(borders[2], borders[5])
 

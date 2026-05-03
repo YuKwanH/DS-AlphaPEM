@@ -7,6 +7,41 @@ A 1D PEMFC simulation framework for the 300W Baltic stack, providing both **stat
 
 ---
 
+## Quick Start — Streamlit GUI
+
+A three-section dashboard (parameters · simulator options · results + save/download) wraps the models. To launch it:
+
+**Windows (cmd):**
+```cmd
+cd D:\PEMFC\MFC2024
+.venv\Scripts\streamlit.exe run gui\app.py
+```
+
+**Windows (PowerShell):**
+```powershell
+Set-Location D:\PEMFC\MFC2024
+.\.venv\Scripts\streamlit.exe run gui\app.py
+```
+
+**macOS / Linux (or Windows with venv activated):**
+```bash
+cd /path/to/MFC2024
+streamlit run gui/app.py
+```
+
+The browser opens at `http://localhost:8501`. First-time setup, if Streamlit isn't installed yet:
+
+```cmd
+.venv\Scripts\python.exe -m pip install -r requirements.txt
+```
+
+**Layout:**
+- **§1 Parameters** — every entry from `config/initialize.py`, grouped by region (Operating · GC · GDL · CL · MEM · Saturation · Numerics) with a region filter.
+- **§2 Options** — model variant (Static / Dynamic / Dual-scale), test profile (Constant · Step · Polarization · EIS · AST cycling), time span, solver, and mesh.
+- **§3 Results** — six tabs (Cell performance · Spatial profile · Manifolds · Water content · Degradation · Custom variable picker), plus a save/download box for CSV / Excel / NumPy export.
+
+---
+
 ## Model Overview
 
 ### Static Model (`PEMFC_stat`)

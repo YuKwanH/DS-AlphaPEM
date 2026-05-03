@@ -1,0 +1,20 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "pemfc-gui",
+      "runtimeExecutable": "D:\\PEMFC\\MFC2024\\.venv\\Scripts\\streamlit.exe",
+      "runtimeArgs": [
+        "run",
+        "gui/app.py",
+        "--server.headless",
+        "true",
+        "--server.port",
+        "8770",
+        "--browser.gatherUsageStats",
+        "false"
+      ],
+      "port": 8770
+    }
+  ]
+}

@@ -219,7 +219,7 @@ def calculate_flows(t, x ,operating_inputs, parameters, Pagc, Pcgc, Pacl,Pagdl, 
         # ------------------- Regime M ------------------- #
         if x["C_v_acl"] > C_v_sat(x["Tacl"]) and x["C_v_agc"] <= C_v_sat(Tfc):
             s_agdl_avg = np.mean([x[f's_agdl_{i}'] for i in range(1, n_gdl + 1)])
-            s_front_agdl = -(C_v_sat(Tfc) - x["C_v_agc"]) * (Da_eff(np.mean(s_agdl_avg),epsilon_gdl,Pa_des, Tfc,epsilon_c,epsilon_gdl) / Jwater)
+            s_front_agdl = Hgdl -(C_v_sat(Tfc) - x["C_v_agc"]) * (Da_eff(s_agdl_avg,epsilon_gdl,Pa_des, Tfc,epsilon_c,epsilon_gdl) / Jwater)
         # ------------------- Regime L ------------------- #
         elif x["C_v_agc"] > C_v_sat(Tfc) and x["C_v_acl"] > C_v_sat(x['Tacl']):
             mliquid = M_H2O * (-Jwater + (Jv_a_in - Jv_a_out) * Hgc/Lgc)
