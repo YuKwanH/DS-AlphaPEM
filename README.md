@@ -9,34 +9,82 @@ A 1D PEMFC simulation framework for the 300W Baltic stack, providing both **stat
 
 ## Quick Start — Streamlit GUI
 
-A three-section dashboard (parameters · simulator options · results + save/download) wraps the models. The instructions below work on **Windows, macOS, and Linux**, with either a `venv` or `conda` environment.
+A three-section dashboard (parameters · simulator options · results + save/download) wraps the models. These instructions work on **Windows, macOS, and Linux** and assume **no prior Python experience**. You will use a *terminal* (the black/white text window where you type commands) — see below if you've never opened one.
 
-### 1. Clone the repository
+### Prerequisites (install once)
+
+You need three tools installed on your computer:
+
+1. **Python 3.10 or newer** — download from <https://www.python.org/downloads/>. During the Windows installer, **tick "Add Python to PATH"**, otherwise the terminal will not find it.
+2. **Git** — download from <https://git-scm.com/downloads>. Used to fetch the project from GitHub.
+3. *(Optional)* **Anaconda / Miniconda** — only if you prefer `conda` over `venv` (Option B below). Get it from <https://www.anaconda.com/download>.
+
+To verify they work, open a terminal (see "Opening a terminal" below) and run:
+
+```bash
+python --version       # should print Python 3.10.x or higher
+git --version          # should print git version 2.x
+```
+
+If either command says *"not recognised / not found"*, the tool is not installed correctly — re-install and make sure the *"Add to PATH"* option is selected.
+
+### Step 1 — Clone the project
+
+Pick a folder on your computer where you want the project to live (e.g. `C:\Users\<you>\Documents` on Windows, or `~/projects` on macOS/Linux). Open a terminal **in that folder** and run:
 
 ```bash
 git clone <this-repo-url> MFC2024
-cd MFC2024
 ```
 
-### 2. Create a Python environment
+This creates a new folder called **`MFC2024`** containing the entire project. **That folder is the project root** — every command below assumes you are inside it.
 
-Requires **Python ≥ 3.10**. Pick whichever flow matches your setup:
+### Step 2 — Find the project root and open a terminal there
 
-**Option A — `venv` (uses the Python on your `PATH`):**
+The "project root" is the `MFC2024/` folder you just created. Every command in the following steps must be run from inside that folder. There are two ways to get a terminal into the right place:
+
+#### Option A — Open the folder, then open a terminal inside it
+- **Windows (File Explorer):** double-click into the `MFC2024` folder so it is open. Click the address bar at the top of the window, type `cmd` and press *Enter*. A Command Prompt opens already located in the project root.
+- **macOS (Finder):** right-click the `MFC2024` folder in Finder → *"New Terminal at Folder"*. (If you don't see that option, enable it in *System Settings → Keyboard → Keyboard Shortcuts → Services → Files & Folders*.)
+- **Linux (most file managers):** right-click inside the `MFC2024` folder → *"Open in Terminal"*.
+
+#### Option B — Use `cd` from any open terminal
+First find the absolute path of the `MFC2024` folder, then `cd` into it.
+- **Windows:** in File Explorer, click the `MFC2024` folder once, then look at the address bar. Click the address bar and copy the text shown (e.g. `C:\Users\you\Documents\MFC2024`). In the terminal type:
+  ```cmd
+  cd "C:\Users\you\Documents\MFC2024"
+  ```
+- **macOS:** in Finder, right-click `MFC2024` while holding *Option*, choose *"Copy <name> as Pathname"*. Then in Terminal:
+  ```bash
+  cd "/Users/you/Documents/MFC2024"
+  ```
+- **Linux:** in your file manager, right-click → *Properties* to read the path, or run `realpath MFC2024` from the parent folder. Then:
+  ```bash
+  cd /home/you/projects/MFC2024
+  ```
+
+After `cd`, type `pwd` (macOS/Linux) or `cd` with no arguments (Windows) to confirm you are in the project root. You should see the `MFC2024` path printed.
+
+> **Tip — what does the project root look like?** The right place will contain `gui/`, `model/`, `config/`, `simulation/`, `requirements.txt`, and this `README.md`. If your terminal's listing (`dir` on Windows, `ls` on macOS/Linux) doesn't show those, you are not in the project root yet.
+
+### Step 3 — Create a Python environment and install dependencies
+
+A "Python environment" is an isolated place to install the project's libraries so they don't clash with anything else on your system. Pick **one** of the two options below.
+
+**Option A — `venv` (built into Python, simplest):**
 ```bash
-# create
+# 1. create the environment in a folder called .venv inside the project
 python -m venv .venv
 
-# activate — Windows (cmd)
-.venv\Scripts\activate.bat
-# activate — Windows (PowerShell)
-.venv\Scripts\Activate.ps1
-# activate — macOS / Linux
-source .venv/bin/activate
+# 2. activate it — pick the line that matches your terminal:
+.venv\Scripts\activate.bat        # Windows  (cmd)
+.venv\Scripts\Activate.ps1        # Windows  (PowerShell)
+source .venv/bin/activate         # macOS / Linux
 
-# install
+# 3. install the project's libraries
 pip install -r requirements.txt
 ```
+
+After activation your terminal prompt should start with `(.venv)` — that's how you know the environment is active. You only need to run steps 1 and 3 once; in future sessions just activate (step 2) and run.
 
 **Option B — `conda` (recommended if you also use the Jupyter notebooks):**
 ```bash
@@ -45,21 +93,34 @@ conda activate mfc
 pip install -r requirements.txt
 ```
 
-### 3. Run the GUI
+The prompt will start with `(mfc)` once the environment is active.
 
-From the repository root, with the environment activated:
+### Step 4 — Run the GUI
+
+Still inside the project root, with the environment active, run:
 
 ```bash
 streamlit run gui/app.py
 ```
 
-A browser tab opens at `http://localhost:8501`. Stop the server with **Ctrl + C** in the terminal.
+A browser tab opens at `http://localhost:8501` showing the dashboard. Stop the server with **Ctrl + C** in the terminal when you're done.
+
+The next time you want to use the GUI, you only need three steps: open a terminal in the project root → activate the environment → run `streamlit run gui/app.py`.
 
 ### Layout
 
 - **§1 Parameters** — every entry from `config/initialize.py`, grouped by region (Operating · GC · GDL · CL · MEM · Saturation · Numerics) with a region filter.
 - **§2 Options** — model variant (Static / Dynamic / Dual-scale), test profile (Constant · Step · Polarization · EIS · AST cycling), time span, solver, and mesh.
 - **§3 Results** — six tabs (Cell performance · Spatial profile · Manifolds · Water content · Degradation · Custom variable picker), plus a save/download box for CSV / Excel / NumPy export.
+
+### Common errors
+
+| Error message | What it means | Fix |
+|---|---|---|
+| `'python' is not recognized` / `command not found` | Python is not installed or not on your PATH. | Re-install Python and tick *Add to PATH*. |
+| `'streamlit' is not recognized` | The environment is not active, or `pip install` was skipped. | Run the activate command from Step 3 first, then `pip install -r requirements.txt`. |
+| `No module named 'config'` | You ran the command from outside the project root. | `cd` into the `MFC2024` folder before running `streamlit`. |
+| Browser tab doesn't open | Streamlit is running but can't auto-open your browser. | Open <http://localhost:8501> manually. |
 
 ### Note on SciPy versions
 
