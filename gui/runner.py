@@ -43,14 +43,15 @@ def run(params, op_inputs, model_variant, profile_func, t_span,
     if model_variant == "Static":
         return _run_static(params, op_inputs, polar_sweep or {})
 
-    p = dict(params)
-    op = dict(op_inputs)
-    op["current_density"] = profile_func
+    # Defensive copies — never mutate the dicts owned by st.session_state.
+    params    = dict(params)
+    op_inputs = dict(op_inputs)
+    op_inputs["current_density"] = profile_func
 
     t0 = time.perf_counter()
     if model_variant == "Dynamic":
-        y0 = init_x(op, p)
-        model = PEMFC_dyn(parameters=p, operating_inputs=op,
+        y0 = init_x(op_inputs, params)
+        model = PEMFC_dyn(parameters=params, operating_inputs=op_inputs,
                           initial_variable_values=y0, time_interval=t_span)
         sol, fallback = _solve_with_fallback(model.dxdt, t_span, y0, method, max_step)
         try:
@@ -58,10 +59,10 @@ def run(params, op_inputs, model_variant, profile_func, t_span,
         except AttributeError:
             pass
     else:
-        model = PEMFC(param=p, operating_inputs=op,
+        model = PEMFC(param=params, operating_inputs=op_inputs,
                       variable_names=solver_variable_names,
                       flux_names=solver_flux_names)
-        y0 = init_x(op, p)
+        y0 = init_x(op_inputs, params)
         sol, fallback = _solve_with_fallback(model.dxdt, t_span, y0, method, max_step)
         model._recovery(sol)
 
@@ -89,16 +90,17 @@ def _run_static(params, op_inputs, polar_sweep):
     Sa = op_inputs.get("Sa", 1.2)
     Sc = op_inputs.get("Sc", 2.5)
 
-    op = dict(op_inputs)
+    # Defensive copies + derived inlet/outlet flows the static solver needs.
+    params    = dict(params)
+    op_inputs = dict(op_inputs)
     F = 96485.0
     I_ref = i_max_A_cm2 * 1e4 * Aact
-    op.setdefault("Win_a", Sa * I_ref / (2.0 * F))
-    op.setdefault("Win_c", Sc * I_ref / (4.0 * F))
-    op.setdefault("Wout_a", op["Win_a"])
-    op.setdefault("Wout_c", op["Win_c"])
+    op_inputs.setdefault("Win_a",  Sa * I_ref / (2.0 * F))
+    op_inputs.setdefault("Win_c",  Sc * I_ref / (4.0 * F))
+    op_inputs.setdefault("Wout_a", op_inputs["Win_a"])
+    op_inputs.setdefault("Wout_c", op_inputs["Win_c"])
 
-    p = dict(params)
-    model = PEMFC_stat(parameters=p, operating_inputs=op)
+    model = PEMFC_stat(parameters=params, operating_inputs=op_inputs)
 
     i_grid = np.linspace(0.05e4, i_max_A_cm2 * 1e4, n_points)
     Ucell, i_keep = [], []
