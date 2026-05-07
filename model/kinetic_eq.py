@@ -98,6 +98,7 @@ def Ucell(t, variables, operating_inputs, parameters):
     Ueq_t = Ueq(variables)
     i_fc_t = operating_inputs['current_density'](t)
     eta_c = (1 / f_drop * R * Tccl / (alpha_c * F) * np.log((i_fc) / i0_c_ref * (C_O2ref / C_O2_ccl) ** kappa_c) * np.exp(Eact / R * (1 / 353 - 1 / Tccl)))
+
     Rmem_t, Rccl_t, Racl_t = Rproton(variables, parameters)
     Rp = sum(Rmem_t)  + Rccl_t + Racl_t
         # The cell voltage OCV = 0.98 according to experimental data
