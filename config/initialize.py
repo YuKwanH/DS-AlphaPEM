@@ -13,13 +13,13 @@ accessible_physical_parameters = {'Aact': 31e-4, 'Hmem': 1.2e-5, 'Hgc': 8e-4, 'W
 current_parameters = {'t_step': (0, 3600, 100, 1.5), 'i_step': (0.5e4, 1.5e4),
                                         'delta_pola': (30, 30, 0.1e4, 60), 'i_max_pola': 1.65e4, # 50A
                                         'i_EIS': 1.0e4, 'ratio_EIS': 0.05, 't_EIS': 15, 'f_EIS': (-3, 5, 90, 50)}
-
+ 
 undetermined_physical_parameters = {'epsilon_gdl': 0.55, "epsilon_cl": 0.3,
                                                                 'epsilon_mc': 0.399,'epsilon_c': 0.299, 
                                                                 'e': 3, 'kappa_co': 37.2, 'Re': 2.2e-7, 'tau': 1.01, 
                                                                 'i0_c_ref': 10.6, 'kappa_c': 0.1, 'C_scl': 1e8, 
                                                                 'a_slim': 0.4, 'b_slim': 0.5, 'a_switch': 0.5,
-                                                                "Hcl": 2.e-5, "Hgdl": 4e-4, "OCV": 0.3}
+                                                                "Hcl": 2.e-5, "Hgdl": 4e-4, "OCV": 0.95}
 
 computing_parameters = {'max_step': 0.1, 'n_gdl': 10,'n_mem':10,'n_group_pt':10,
                                             't_purge': (2.4, 15), 'type_fuel_cell': "LEV-200", 'type_control': "Phi_des", 'type_purge': "constant_purge"}
@@ -56,8 +56,7 @@ def init_x(operating_inputs, parameters):
     i_fc_ini = current_density(0)
     f_drop_ini = 0.5 * (1.0 - np.tanh((4 * s_ini - 2 * slim - 2 * s_switch) / (slim - s_switch)))
     # It is the initial cathode overpotential in the fuel cell.
-    eta_c_ini = (1 / f_drop_ini * R * Tfc / (alpha_c * F) * np.log((i_fc_ini) / i0_c_ref * (C_O2ref / C_O2_ini) ** kappa_c) *
-                        np.exp(Eact / R * (1 / 353 - 1 / Tfc)))
+    eta_c_ini = (1 / f_drop_ini * R * Tfc / (alpha_c * F) * np.log((i_fc_ini) / i0_c_ref * (C_O2ref / C_O2_ini) ** kappa_c) * np.exp(Eact / R * (1 / 353 - 1 / Tfc)))
 
     # Initial auxiliary system state
     Pasm_ini, Paem_ini = Pa_des, P_des_moy  # Pa. It is the supply/exhaust manifold pressure at the anode side.

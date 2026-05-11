@@ -126,9 +126,10 @@ class PEMFC_stat:
                      "C_H2_acl": C_H2_acl, "C_O2_ccl": C_O2_ccl, "C_H2_agdl": C_H2_agdl, "C_O2_cgdl": C_O2_cgdl,
                      "C_H2_agc": C_H2_agc, "C_O2_cgc": C_O2_cgc, "C_H2_inter": C_H2_inter, "C_O2_inter": C_O2_inter,
                      "Ueq": Ueq, "eta_c": eta_c, "Rohm": Rohm, "Rccl": Rccl, "Racl": Racl,
-                     "Jw_ca":Jw_ca, "Jw_an": Jw_an, "JH2": JH2, "JO2": JO2,
+                     "Jw_ca":Jw_ca, "Jw_an": Jw_an, "JH2": JH2, "JO2": JO2, "Tccl": Tfc, "Tacl": Tfc,
                      "Jv_a_in": Win_a * Phi_a_des * C_v_sat(Tfc)/Lgc, "Jv_a_out": Wout_a * C_v_agc/Lgc,
                      "Jv_c_in": Win_c * Phi_c_des * C_v_sat(Tfc)/Lgc, "Jv_c_out": Wout_c * C_v_cgc/Lgc,}
+
 
     def gdl_profile(self, Jw, Win, Wout, Phi_des, P_des):
 
@@ -241,7 +242,44 @@ class PEMFC_stat:
 
 
         return C_v_gdl, np.min([C_v_cl, C_v_sat(Tfc)]), np.min([C_v_inter, C_v_sat(Tfc)]), np.min([C_v_gc, C_v_sat(Tfc)]), s, x_front
-    
+
+
+    def cell_voltage(self, i_fc, sol, parameters, operating_inputs):
+        
+        OCV = parameters['OCV']
+        s_ccl = sol["s_cgdl"][-1]
+        C_O2_ccl = sol["C_O2_cgdl"][-1]
+        Tccl = operating_inputs["Tfc"]
+        i0_c_ref,  kappa_c = parameters["i0_c_ref"], parameters["kappa_c"]
+        Pc_des = operating_inputs['Pc_des']
+        Hmem, Hcl, epsilon_mc, tau = parameters['Hmem'], parameters['Hcl'], parameters['epsilon_mc'], parameters['tau']
+        lambda_ccl, lambda_acl = sol['lambda_ccl'], sol['lambda_acl']
+
+        # Recovery of the already calculated variable values at each time step
+        Rmem = []
+        for i_mem in range(parameters['n_mem']):
+            lambda_mem = sol["lambda_mem"][i_mem]
+            # The proton resistance
+            # The proton resistance at the membrane: Rmem
+            if lambda_mem >= 1:
+                Rmem += [(Hmem/parameters['n_mem']) / ((0.5139 * lambda_mem - 0.326) * np.exp(1268 * (1 / 303.15 - 1 / Tccl)))]
+            else:
+                Rmem += [(Hmem/parameters['n_mem']) / (0.1879 * np.exp(1268 * (1 / 303.15 - 1 / Tccl)))]
+
+        #  The proton resistance at the cathode catalyst layer : Rccl
+        if lambda_ccl >= 1:
+            Rccl = Hcl / ((epsilon_mc ** tau) * (0.5139 * lambda_ccl - 0.326) * np.exp(1268 * (1 / 303.15 - 1 / Tccl)))
+        else:
+            Rccl = Hcl / ((epsilon_mc ** tau) * 0.1879 * np.exp(1268 * (1 / 303.15 - 1 / Tccl)))
+        a_slim, b_slim, a_switch = parameters['a_slim'], parameters['b_slim'], parameters['a_switch']
+        # The liquid water induced voltage drop function f_drop
+        slim = a_slim * (Pc_des / 1e5) + b_slim
+        s_switch = a_switch * slim
+        f_drop = 0.5 * (1.0 - np.tanh((4 * s_ccl - 2 * slim - 2 * s_switch) / (slim - s_switch)))
+        eta_c = (1 / f_drop * R * Tccl / (alpha_c * F) * np.log((i_fc) / i0_c_ref * (C_O2ref / C_O2_ccl) ** kappa_c) * np.exp(Eact / R * (1 / 353 - 1 / Tccl)))
+        return OCV - eta_c - (sum(Rmem) + Rccl)*i_fc
+
+
     @staticmethod
     def _solve_sat(rhs):
         """Solve 0.35425*s^4 - 0.848*s^5 + 0.6315*s^6 = rhs for s in [0,1]."""
