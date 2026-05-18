@@ -32,7 +32,7 @@ R_iono = 5.56e-4
 
 # Model parameters for the voltage calculation
 C_O2ref = 3.39  # mol.m-3. It is the reference concentration of oxygen.
-alpha_c = 0.5  # It is the transfer coefficient of the cathode.
+alpha_c = 0.95 # It is the transfer coefficient of the cathode.
 E0 = 1.229  # V. It is the standard-state reversible voltage.
 Pref = 1e5  # Pa. It is the reference pressure.
 Eact = 73.2e3  # J.mol-1. It is the activation energy.
@@ -44,27 +44,27 @@ n_cell = 22 # . It is the number of cell in the stack.
 Vsm = 5e-5  # m3. It is the supply manifold volume.
 Vem = 5e-5  # m3. It is the exhaust manifold volume.
 tau_cp = 1  # s. It is the air compressor time constant.
-tau_hum = 3  # s. It is the humidifier time constant.
+tau_hum = 1  # s. It is the humidifier time constant.
 A_T = 1.26e-4  # m². It is the exhaust manifold throttle area
 
-Kp = 1e-4  # m².s-1.Pa-1. It is the proportional constant of the PD controller at the throttle
+Kp = 1e-5  # m².s-1.Pa-1. It is the proportional constant of the PD controller at the throttle
 Kd = 1e-7  # m².s-1.Pa-1. It is the derivative constant of the PD controller at the throttle
 C_D = 0.6  # . It is the throttle discharge coefficient.
-Ksm_in = 1.0e-7  # kg.s-1.Pa-1. It is the supply manifold inlet orifice constant.
+Ksm_in = 2.0e-7  # kg.s-1.Pa-1. It is the supply manifold inlet orifice constant.
 Ksm_out = 1.0e-7  # kg.s-1.Pa-1. It is the supply manifold outlet orifice constant.
-Kem_in = 1.0e-7  # kg.s-1.Pa-1. It is the exhaust manifold inlet orifice constant.
-Kem_out = 2.0e-7  # kg.s-1.Pa-1. It is the exhaust manifold outlet orifice constant.
+Kem_in = 2.0e-7  # kg.s-1.Pa-1. It is the exhaust manifold inlet orifice constant.
+Kem_out = 1.0e-7  # kg.s-1.Pa-1. It is the exhaust manifold outlet orifice constant.
 
 # Chemical constants for Pt surface reactions
-k1 = 1.1294180183708424e-15
-k1_ref = 1e-22
-k2 = 1.58261063296523e-17
-k2_ref = 1e-18
-k3 = 3.058419059781427e-14
-krdp = 4.247316005848088e-13
+k1 = 1.1294180183708424e-26
+k1_ref = 1e-26
+k2 = 1.58261063296523e-25
+k2_ref = 1e-25
+k3 = 3.058419059781427e-25
+krdp = 4.247316005848088e-25
 k4 = 0
 k5 = 0
-kdet_ref = 1.1359500154563962e-21
+kdet_ref = 1.1359500154563962e-28
 rho_cc = 2.26
 Mcc = 12.01
 Ueq_4 = 0.2

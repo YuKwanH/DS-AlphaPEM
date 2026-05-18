@@ -94,15 +94,16 @@ def Ucell(t, variables, operating_inputs, parameters):
     i_fc = operating_inputs['current_density'](t)
     f_drop = fdrop(variables, operating_inputs, parameters)
     Re, i0_c_ref, kappa_c = parameters['Re'], parameters['i0_c_ref'], parameters['kappa_c']
+    OCV = parameters["OCV"]
     # Extraction of the operating inputs and the parameters
-    Ueq_t = Ueq(variables)
+    #Ueq_t = Ueq(variables)
     i_fc_t = operating_inputs['current_density'](t)
     eta_c = (1 / f_drop * R * Tccl / (alpha_c * F) * np.log((i_fc) / i0_c_ref * (C_O2ref / C_O2_ccl) ** kappa_c) * np.exp(Eact / R * (1 / 353 - 1 / Tccl)))
 
     Rmem_t, Rccl_t, Racl_t = Rproton(variables, parameters)
     Rp = sum(Rmem_t)  + Rccl_t + Racl_t
         # The cell voltage OCV = 0.98 according to experimental data
-    Ucell_t = Ueq_t - (i_fc_t) * (Rp + Re) - eta_c
+    Ucell_t = OCV - (i_fc_t) * (Rp + Re) - eta_c
     
     return Ucell_t
 

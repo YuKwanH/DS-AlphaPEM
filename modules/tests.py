@@ -63,10 +63,12 @@ def constant_load_test(i_density=4000.0, t_span=(0, 20), **kwargs):
 
 
 def step_load_test(tstart=0.0, tend=6.0, i_low=20.0, i_high=12000.0,
-                   tau_switch=1.0, t_switch=3.0, t_span=(0, 20), **kwargs):
-    """Periodic tanh-smoothed square load between ``i_low`` and ``i_high`` [A/m^2].
+                   tau_switch=1.5, t_switch=0.5, t_span=(0, 20), **kwargs):
+    """Periodic symmetric square load between ``i_low`` and ``i_high`` [A/m^2].
 
-    Defaults mirror ``simulation/control/square load.ipynb`` exactly.
+    Defaults give a 6 s period with ~50/50 LOW/HIGH duty cycle and 0.5 s
+    smooth transitions (rising edge at ``tau_switch``, falling edge at
+    ``tend - tau_switch``).
     """
     profile = generate_step_load(tstart, tend, i_low, i_high, tau_switch, t_switch)
     return _run(profile, t_span, **kwargs)

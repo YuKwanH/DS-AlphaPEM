@@ -271,6 +271,11 @@ class PEMFC_stat:
             Rccl = Hcl / ((epsilon_mc ** tau) * (0.5139 * lambda_ccl - 0.326) * np.exp(1268 * (1 / 303.15 - 1 / Tccl)))
         else:
             Rccl = Hcl / ((epsilon_mc ** tau) * 0.1879 * np.exp(1268 * (1 / 303.15 - 1 / Tccl)))
+        #  The proton resistance at the anode catalyst layer : Racl
+        if lambda_acl >= 1:
+            Racl = Hcl / ((epsilon_mc ** tau) * (0.5139 * lambda_acl - 0.326) * np.exp(1268 * (1 / 303.15 - 1 / Tccl)))
+        else:
+            Racl = Hcl / ((epsilon_mc ** tau) * 0.1879 * np.exp(1268 * (1 / 303.15 - 1 / Tccl)))
         a_slim, b_slim, a_switch = parameters['a_slim'], parameters['b_slim'], parameters['a_switch']
         # The liquid water induced voltage drop function f_drop
         slim = a_slim * (Pc_des / 1e5) + b_slim

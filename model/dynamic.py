@@ -265,10 +265,10 @@ class PEMFC_dyn:
             s_front_cgdl = 0
         
         if s_front_agdl < 0 or s_front_cgdl < 0:
-            raise ValueError("Negative saturation {}({}) front position. Check the inputs and the model assumptions.".format("anode" if s_front_agdl < 0 else "cathode", s_front_agdl if s_front_agdl < 0 else s_front_cgdl))
+            raise ValueError("Negative saturation {}({}) front position. Check the inputs and the model assumptions.")
         if s_front_agdl > Hgdl or s_front_cgdl > Hgdl:
             print( x["C_v_cgdl_10"])
-            raise ValueError("Saturation front position {} ({}) exceeds the GDL thickness. Check the inputs and the model assumptions.".format("anode" if s_front_agdl > Hgdl else "cathode", s_front_agdl if s_front_agdl > Hgdl else s_front_cgdl))
+            raise ValueError("Saturation front position {} ({}) exceeds the GDL thickness. Check the inputs and the model assumptions.")
         
 
         #_____________________________________Liquid water flows (kg.m-2.s-1)__________________________________________

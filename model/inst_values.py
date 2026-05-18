@@ -121,6 +121,8 @@ def calculate_flows(t, x ,operating_inputs, parameters, Pagc, Pcgc, Pacl,Pagdl, 
     Tfc = operating_inputs["Tfc"]
     Imin_aux = operating_inputs["Imin_aux"]
     k_purge = 2.5
+    # 
+    Psat_fc = Psat(Tfc)
     
     # Mean values ...
     #       ... of the saturated liquid water variable
@@ -146,8 +148,8 @@ def calculate_flows(t, x ,operating_inputs, parameters, Pagc, Pcgc, Pacl,Pagdl, 
     Wasm_in = Wrd + x['Wa_inj']  # kg.s-1
     Wasm_out =  (x['Pasm'] - Pagc)  * Ksm_out  # kg.s-1
     Ja_in = Wasm_out / (Hgc * Wgc * Masm)  # mol.m-2.s-1
-    Jv_a_in = x['Phi_asm'] * Psat(Tfc) / x['Pasm'] * Ja_in
-    J_H2_in = (1 - x['Phi_asm'] * Psat(Tfc) / x['Pasm']) * Ja_in
+    Jv_a_in = x['Phi_asm'] * Psat_fc / x['Pasm'] * Ja_in
+    J_H2_in = (1 - x['Phi_asm'] * Psat_fc / x['Pasm']) * Ja_in
     Wv_asm_in = x['Wa_inj'] / M_H2O
     # Anode outlet
     Waem_in = Kem_in * (Pagc - x["Paem"])  # kg.s-1
@@ -155,26 +157,26 @@ def calculate_flows(t, x ,operating_inputs, parameters, Pagc, Pcgc, Pacl,Pagdl, 
     Waem_out = C_D * x['Abp_a'] * x["Paem"] / np.sqrt(R * Tfc) * Pr_aem ** (1 / gamma_H2) * \
                           np.sqrt(Magc * 2 * gamma_H2 / (gamma_H2 - 1) * (1 - Pr_aem ** ((gamma_H2 - 1) / gamma_H2)))
     Ja_out = Waem_in / (Hgc * Wgc * Magc)  # mol.m-2.s-1
-    Jv_a_out = Phi_agc * Psat(Tfc) / Pagc * Ja_out
-    J_H2_out = (1 - Phi_agc * Psat(Tfc) / Pagc) * Ja_out
-    Wv_aem_out = x['Phi_aem'] * Psat(Tfc) / x['Paem'] * (Waem_out / Maem)
+    Jv_a_out = Phi_agc * Psat_fc / Pagc * Ja_out
+    J_H2_out = (1 - Phi_agc * Psat_fc / Pagc) * Ja_out
+    Wv_aem_out = x['Phi_aem'] * Psat_fc / x['Paem'] * (Waem_out / Maem)
     # Cathode inlet         
     Wcsm_in = x['Wcp'] + x['Wc_inj']  # kg.s-1
     Wcsm_out = (x['Pcsm'] - Pcgc) * Ksm_out  # kg.s-1
     Jc_in = Wcsm_out / (Hgc * Wgc * Mcsm)  # mol.m-2.s-1
-    J_O2_in = yO2_ext * (1 - x['Phi_csm'] * Psat(Tfc) / x['Pcsm']) * Jc_in
-    Jv_c_in = x['Phi_csm'] * Psat(Tfc) / x['Pcsm'] * Jc_in
-    Wv_csm_in = Phi_ext * Psat(Text) / Pext * (x['Wcp'] / Mext) + x['Wc_inj'] / M_H2O
-    J_N2_in = (1 - yO2_ext) * (1 - x['Phi_csm'] * Psat(Tfc) / x['Pcsm']) * Jc_in
+    J_O2_in = yO2_ext * (1 - x['Phi_csm'] * Psat_fc / x['Pcsm']) * Jc_in
+    Jv_c_in = x['Phi_csm'] * Psat_fc / x['Pcsm'] * Jc_in
+    Wv_csm_in = Phi_ext * Psat_fc / Pext * (x['Wcp'] / Mext) + x['Wc_inj'] / M_H2O
+    J_N2_in = (1 - yO2_ext) * (1 - x['Phi_csm'] * Psat_fc / x['Pcsm']) * Jc_in
     # Cathode outlet
     Wcem_in = Kem_in * (Pcgc - x["Pcem"])  # kg.s-1
     Wcem_out = C_D * x['Abp_c'] * x["Pcem"] / np.sqrt(R * Tfc) * Pr_cem ** (1 / gamma) * \
                             np.sqrt(Mcgc * 2 * gamma / (gamma - 1) * (1 - Pr_cem ** ((gamma - 1) / gamma)))  # kg.s-1
     Jc_out = Wcem_in / (Hgc * Wgc * Mcgc)  # mol.m-2.s-1
-    J_O2_out = y_cgc * (1 - Phi_cgc * Psat(Tfc) / Pcgc) * Jc_out
-    Jv_c_out = Phi_cgc * Psat(Tfc) / Pcgc * Jc_out
-    Wv_cem_out = x['Phi_cem'] * Psat(Tfc) / x['Pcem'] * (Wcem_out / Mcem)
-    J_N2_out = (1 - y_cgc) * (1 - Phi_cgc * Psat(Tfc) / Pcgc) * Jc_out
+    J_O2_out = y_cgc * (1 - Phi_cgc * Psat_fc / Pcgc) * Jc_out
+    Jv_c_out = Phi_cgc * Psat_fc / Pcgc * Jc_out
+    Wv_cem_out = x['Phi_cem'] * Psat_fc / x['Pcem'] * (Wcem_out / Mcem)
+    J_N2_out = (1 - y_cgc) * (1 - Phi_cgc * Psat_fc / Pcgc) * Jc_out
     
     #________________________________________Dissolved water flows (mol.m-2.s-1)_______________________________________
     # Anode side
@@ -213,15 +215,16 @@ def calculate_flows(t, x ,operating_inputs, parameters, Pagc, Pcgc, Pacl,Pagdl, 
     
     # saturation front 
     nu_g =  1.881e-5
+    C_v_sat_acl = C_v_sat(x["Tacl"])
     ## Anode side
     Jwater = np.mean(Jv_agc_agdl)
     if Jwater < 0: # AGC <- ACL
         # ------------------- Regime M ------------------- #
-        if x["C_v_acl"] > C_v_sat(x["Tacl"]) and x["C_v_agc"] <= C_v_sat(Tfc):
+        if x["C_v_acl"] > C_v_sat_acl and x["C_v_agc"] <= Psat_fc/(R*Tfc):
             s_agdl_avg = np.mean([x[f's_agdl_{i}'] for i in range(1, n_gdl + 1)])
-            s_front_agdl = Hgdl -(C_v_sat(Tfc) - x["C_v_agc"]) * (Da_eff(s_agdl_avg,epsilon_gdl,Pa_des, Tfc,epsilon_c,epsilon_gdl) / Jwater)
+            s_front_agdl = Hgdl -(Psat_fc/(R*Tfc) - x["C_v_agc"]) * (Da_eff(s_agdl_avg,epsilon_gdl,Pa_des, Tfc,epsilon_c,epsilon_gdl) / Jwater)
         # ------------------- Regime L ------------------- #
-        elif x["C_v_agc"] > C_v_sat(Tfc) and x["C_v_acl"] > C_v_sat(x['Tacl']):
+        elif x["C_v_agc"] > Psat_fc/(R*Tfc) and x["C_v_acl"] > C_v_sat_acl:
             mliquid = M_H2O * (-Jwater + (Jv_a_in - Jv_a_out) * Hgc/Lgc)
             ans1 = (mliquid * Lgc * nu_l(Tfc)/ (Hgc * rho_H2O(Tfc) * nu_g)) ** (1/3)
             s_agdl_inter = ans1 / (ans1 + 1)
@@ -231,26 +234,27 @@ def calculate_flows(t, x ,operating_inputs, parameters, Pagc, Pcgc, Pacl,Pagdl, 
             s_front_agdl = Hgdl
     else: # AGC -> ACL
         # ------------------- Regime M ------------------- #
-        if  x["C_v_acl"] < C_v_sat(x['Tacl'])  and x['C_v_agc'] > C_v_sat(Tfc):
+        if  x["C_v_acl"] < C_v_sat_acl  and x['C_v_agc'] > Psat_fc/(R*Tfc):
             mliquid = M_H2O * (-Jwater + (Jv_a_in - Jv_a_out) * Hgc/Lgc)
             ans1 = (mliquid * Lgc * nu_l(Tfc)/ (Hgc * rho_H2O(Tfc) * nu_g)) ** (1/3)
             s_agdl_inter = ans1 / (ans1 + 1)
             rhs = (-sigma(Tfc) * K0(epsilon_gdl, epsilon_c, epsilon_gdl)/nu_l(Tfc)* np.cos(theta_c_gdl)*(epsilon_gdl/K0(epsilon_gdl,epsilon_c, epsilon_gdl))**0.5)
             s_front_agdl = Hgdl - (0.35425 *s_agdl_inter ** 4 - 0.848 *  s_agdl_inter**5 + 0.6315 *  s_agdl_inter ** 6) * rhs / (M_H2O * -Jwater)
-        elif  x["C_v_acl"] < C_v_sat(x['Tacl'])  and x['C_v_agc'] < C_v_sat(Tfc):
+        elif  x["C_v_acl"] < C_v_sat_acl  and x['C_v_agc'] < Psat_fc/(R*Tfc):
             s_front_agdl =Hgdl
         else:
             s_front_agdl = 0
     
     # Cathode side
+    C_v_sat_ccl = C_v_sat(x["Tccl"])
     Jwater = np.mean(Jv_cgdl_cgdl)
     if Jwater > 0: # CCL -> CGC
         # ------------------- Regime M ------------------- #
-        if  x["C_v_ccl"] >= C_v_sat(x['Tccl']) and x['C_v_cgc'] <= C_v_sat(Tfc):
+        if  x["C_v_ccl"] >= C_v_sat_ccl and x['C_v_cgc'] <= Psat_fc/(R*Tfc):
             s_cgdl_avg = np.mean([x[f's_cgdl_{i}'] for i in range(1, n_gdl + 1)])
-            s_front_cgdl = (C_v_sat(Tfc) - x["C_v_cgdl_10"]) * Dc_eff(s_cgdl_avg, epsilon_c, Pc_des, Tfc, epsilon_c, epsilon_gdl) * epsilon_gdl **1.5 / (Jwater)
+            s_front_cgdl = (Psat_fc/(R*Tfc) - x["C_v_cgdl_10"]) * Dc_eff(s_cgdl_avg, epsilon_c, Pc_des, Tfc, epsilon_c, epsilon_gdl) * epsilon_gdl **1.5 / (Jwater)
         # ------------------- Regime L ------------------- #
-        elif x['C_v_cgc'] > C_v_sat(Tfc) and x['C_v_ccl'] > C_v_sat(x['Tccl']):
+        elif x['C_v_cgc'] > Psat_fc/(R*Tfc) and x['C_v_ccl'] > C_v_sat_ccl:
             s_front_cgdl = Hgdl
             mliquid = M_H2O * (Jwater + (Jv_c_in - Jv_c_out) * Hgc/Lgc)
             ans1 = (mliquid * Lgc * nu_l(Tfc)/ (Hgc * rho_H2O(Tfc) * nu_g)) ** (1/3)
@@ -262,10 +266,10 @@ def calculate_flows(t, x ,operating_inputs, parameters, Pagc, Pcgc, Pacl,Pagdl, 
         ans1 = (mliquid * Lgc * nu_l(Tfc)/ (Hgc * rho_H2O(Tfc) * nu_g)) ** (1/3)
         s_cgdl_inter = ans1 / (ans1 + 1)
         # ------------------- Regime M ------------------- #
-        if  x["C_v_ccl"] <= C_v_sat(x['Tccl'])  and x['C_v_cgc'] >= C_v_sat(Tfc):
+        if  x["C_v_ccl"] <= C_v_sat_ccl and x['C_v_cgc'] >= Psat_fc/(R*Tfc):
             rhs = (-sigma(Tfc) * K0(epsilon_gdl, epsilon_c, epsilon_gdl)/nu_l(Tfc)* np.cos(theta_c_gdl)*(epsilon_gdl/K0(epsilon_gdl,epsilon_c, epsilon_gdl))**0.5)
             s_front_cgdl = (0.35425 *s_cgdl_inter ** 4 - 0.848 *  s_cgdl_inter**5 + 0.6315 *  s_cgdl_inter ** 6) * rhs / (M_H2O * Jwater)
-        elif  x["C_v_ccl"] < C_v_sat(x['Tccl'])  and x['C_v_cgc'] < C_v_sat(Tfc):
+        elif  x["C_v_ccl"] < C_v_sat_ccl  and x['C_v_cgc'] < Psat_fc/(R*Tfc):
             s_cgdl_inter = 0
             s_front_cgdl = 0
         else:

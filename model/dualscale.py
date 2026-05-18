@@ -59,8 +59,11 @@ class PEMFC:
                 self._dif_keys = tuple('d' + n + ' / dt' for n in self.variable_names)
                 self._n_states = len(self.variable_names)
 
-        def dxdt(self, t, x):
+                self.t = 0
 
+        def dxdt(self, t, x):
+                
+                self.t = t
                 # State gradients dict (pre-cached keys; values default to 0.0)
                 dif = dict.fromkeys(self._dif_keys, 0.0)
                 states = {n: x[i] for n, i in self._idx.items()}

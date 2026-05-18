@@ -5,34 +5,50 @@ def generate_step_load(tstart, tend, i_low, i_high, tau_switch, t_switch):
 
     # --- Pre-computed constants (rebuild if any global above changes) ---
     _period  = tend - tstart
-    _i_mid   = 0.5 * (i_low  + i_high)
-    _di_half = 0.5 * (i_high - i_low)
-    _t_c     = tau_switch + 0.5 * t_switch   # tanh center, relative to tstart
-    _inv_w   = 6.0 / t_switch                
+    _di      = i_high - i_low
+    _t_rise  = float(tau_switch)               # rising-edge centre, in seconds from tstart
+    _t_fall  = _period - float(tau_switch)     # falling-edge centre (symmetric within the period)
+    _inv_w   = 6.0 / float(t_switch)           # 99.7 % of each transition completes within t_switch
 
 
     def current(t):
         """
-        Periodic, C^∞-smooth ramp current density i(t) [A/m^2].
+        Periodic symmetric square-wave current density i(t) [A/m^2].
 
-        Within each period of length (tend - tstart), starting at tstart:
+        Two C^infinity-smooth tanh transitions per period
+        (tend - tstart):
 
-            i(tau) = (i_low + i_high)/2
-                + (i_high - i_low)/2
-                    * tanh( (tau - (tau_switch + t_switch/2)) / (t_switch/6) )
+            i(tau) = i_low + (i_high - i_low) * 0.5
+                            * ( tanh((tau - tau_switch ) * 6 / t_switch)
+                              - tanh((tau - (T - tau_switch)) * 6 / t_switch) )
 
-        The transition is centered at tau = tau_switch + t_switch/2 with a
-        characteristic width of t_switch/6, so ~99.7 % of the step is
-        completed within [tau_switch, tau_switch + t_switch].
+        with T = tend - tstart. The rising edge is centred at
+        ``tau_switch`` seconds into the period and the falling edge at
+        ``T - tau_switch``, so the wave is symmetric around T/2:
+
+          *   tau in [0, tau_switch - t_switch/2]            -> i = i_low
+          *   tau in [tau_switch -+ t_switch/2]              -> smooth rise
+          *   tau in [tau_switch + t_switch/2,
+                      T - tau_switch - t_switch/2]           -> i = i_high
+          *   tau in [T - tau_switch -+ t_switch/2]          -> smooth fall
+          *   tau in [T - tau_switch + t_switch/2, T]        -> i = i_low
+
+        and the boundary i(0) = i(T) = i_low is continuous (no jump at
+        the period seam, unlike the legacy single-edge form).
+
+        Typical 50/50 duty cycle for a 6 s period:
+            tau_switch = 1.5   (so the transitions are at 1.5 s and 4.5 s)
+            t_switch   = 0.5   (sharp but smooth transitions)
+
         Accepts scalar or array t.
         """
         tau = (t - tstart) % _period
-        arg = (tau - _t_c) * _inv_w
-        # Scalar fast path matters inside ODE/IDA inner loops
-        if isinstance(arg, np.ndarray):
-            return _i_mid + _di_half * np.tanh(arg)
-        return _i_mid + _di_half * math.tanh(arg)
-    
+        a   = (tau - _t_rise) * _inv_w
+        b   = (tau - _t_fall) * _inv_w
+        if isinstance(tau, np.ndarray):
+            return i_low + _di * 0.5 * (np.tanh(a) - np.tanh(b))
+        return i_low + _di * 0.5 * (math.tanh(a) - math.tanh(b))
+
     return current
 
 def generate_constant_load(i_density):
