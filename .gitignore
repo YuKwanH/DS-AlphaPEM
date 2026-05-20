@@ -1,0 +1,5 @@
+# Oversized data file — exceeds GitHub's 100 MB file-size limit, keep local only
+data/AST_squareprofile.csv
+
+# Claude Code worktrees (transient working copies, not part of the project)
+.claude/worktrees/

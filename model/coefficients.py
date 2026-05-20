@@ -39,32 +39,32 @@ Eact = 73.2e3  # J.mol-1. It is the activation energy.
 
 # Model parameters for the balance of plant
 #   Physical parameters
-n_cell = 22 # . It is the number of cell in the stack.
+n_cell = 1 # . It is the number of cell in the stack.
 # Auxiliary system parameters
-Vsm = 5e-5  # m3. It is the supply manifold volume.
-Vem = 5e-5  # m3. It is the exhaust manifold volume.
+Vsm = 5e-3  # m3. It is the supply manifold volume.
+Vem = 5e-3  # m3. It is the exhaust manifold volume.
 tau_cp = 1  # s. It is the air compressor time constant.
 tau_hum = 1  # s. It is the humidifier time constant.
-A_T = 1.26e-4  # m². It is the exhaust manifold throttle area
+A_T = 1.26e-3  # m². It is the exhaust manifold throttle area
 
-Kp = 1e-5  # m².s-1.Pa-1. It is the proportional constant of the PD controller at the throttle
-Kd = 1e-7  # m².s-1.Pa-1. It is the derivative constant of the PD controller at the throttle
-C_D = 0.6  # . It is the throttle discharge coefficient.
-Ksm_in = 2.0e-7  # kg.s-1.Pa-1. It is the supply manifold inlet orifice constant.
-Ksm_out = 1.0e-7  # kg.s-1.Pa-1. It is the supply manifold outlet orifice constant.
-Kem_in = 2.0e-7  # kg.s-1.Pa-1. It is the exhaust manifold inlet orifice constant.
-Kem_out = 1.0e-7  # kg.s-1.Pa-1. It is the exhaust manifold outlet orifice constant.
+Kp = 1e-7  # m².s-1.Pa-1. It is the proportional constant of the PD controller at the throttle
+Kd = 1e-8  # m².s-1.Pa-1. It is the derivative constant of the PD controller at the throttle
+C_D = 0.5  # . It is the throttle discharge coefficient.
+Ksm_in = 2.0e-5  # kg.s-1.Pa-1. It is the supply manifold inlet orifice constant.
+Ksm_out = 1.0e-4  # kg.s-1.Pa-1. It is the supply manifold outlet orifice constant.
+Kem_in = 5.0e-4 # kg.s-1.Pa-1. It is the exhaust manifold inlet orifice constant.
+Kem_out = 1.0e-6  # kg.s-1.Pa-1. It is the exhaust manifold outlet orifice constant.
 
 # Chemical constants for Pt surface reactions
-k1 = 1.1294180183708424e-26
-k1_ref = 1e-26
-k2 = 1.58261063296523e-25
-k2_ref = 1e-25
-k3 = 3.058419059781427e-25
-krdp = 4.247316005848088e-25
+k1 = 1.1294180183708424e-15
+k1_ref = 1e-18
+k2 = 1.58261063296523e-17
+k2_ref = 1e-13
+k3 =  3.058419059781427e-14
+krdp = 4.247316005848088e-13
 k4 = 0
 k5 = 0
-kdet_ref = 1.1359500154563962e-28
+kdet_ref = 1.1359500154563962e-21
 rho_cc = 2.26
 Mcc = 12.01
 Ueq_4 = 0.2

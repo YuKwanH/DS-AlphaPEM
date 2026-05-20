@@ -18,7 +18,7 @@ def fdrop(x, operating_inputs, parameters):
     """
 
     # Extraction of the variables
-    s_ccl = x['s_ccl']
+    s_ccl = x['s_cgdl_1']
     # Extraction of the operating inputs and the parameters
     Pc_des = operating_inputs['Pc_des']
     a_slim, b_slim, a_switch = parameters['a_slim'], parameters['b_slim'], parameters['a_switch']
@@ -29,10 +29,10 @@ def fdrop(x, operating_inputs, parameters):
     return 0.5 * (1.0 - np.tanh((4 * s_ccl - 2 * slim - 2 * s_switch) / (slim - s_switch)))
 
 
-def Rproton(variables, parameters):
+def Rproton(variables, parameters, op):
 
     # Extraction of the operating inputs and the parameters
-    Tccl, Tacl = variables['Tccl'], variables['Tacl']
+    Tccl, Tacl = op['Tfc'], op['Tfc']
     Hmem, Hcl, epsilon_mc, tau = parameters['Hmem'], parameters['Hcl'], parameters['epsilon_mc'], parameters['tau']
     lambda_ccl, lambda_acl = variables['lambda_ccl'], variables['lambda_acl']
 
@@ -40,7 +40,7 @@ def Rproton(variables, parameters):
     Rmem = []
     for i_mem in range(1, parameters['n_mem'] + 1):
         lambda_mem = variables["lambda_mem_" + str(i_mem)]
-        Tmem = variables["Tmem_" + str(i_mem)]
+        Tmem = op['Tfc']
         # The proton resistance
         # The proton resistance at the membrane: Rmem
         if lambda_mem >= 1:
@@ -63,11 +63,10 @@ def Rproton(variables, parameters):
     return Rmem, Rccl, Racl
 
 
-def Ueq(variables):
+def Ueq(variables, op):
     # Extraction of the variables
-    Tccl = variables['Tccl']
+    Tccl = op['Tfc']
     C_H2_acl, C_O2_ccl = variables['C_H2_acl'], variables['C_O2_ccl']
-
     return (E0 - 8.5e-4 * (Tccl - 298.15) + R * Tccl / (2 * F) * (np.log(R * Tccl * C_H2_acl / Pref) + 0.5 * np.log(R * Tccl * C_O2_ccl / Pref)))
 
 
@@ -90,7 +89,7 @@ def Ucell(t, variables, operating_inputs, parameters):
     """
 
     # Extraction of the variables
-    Tccl, C_O2_ccl = variables['Tccl'], variables['C_O2_ccl']
+    Tccl, C_O2_ccl = operating_inputs["Tfc"], variables['C_O2_ccl']
     i_fc = operating_inputs['current_density'](t)
     f_drop = fdrop(variables, operating_inputs, parameters)
     Re, i0_c_ref, kappa_c = parameters['Re'], parameters['i0_c_ref'], parameters['kappa_c']
@@ -99,9 +98,8 @@ def Ucell(t, variables, operating_inputs, parameters):
     #Ueq_t = Ueq(variables)
     i_fc_t = operating_inputs['current_density'](t)
     eta_c = (1 / f_drop * R * Tccl / (alpha_c * F) * np.log((i_fc) / i0_c_ref * (C_O2ref / C_O2_ccl) ** kappa_c) * np.exp(Eact / R * (1 / 353 - 1 / Tccl)))
-
-    Rmem_t, Rccl_t, Racl_t = Rproton(variables, parameters)
-    Rp = sum(Rmem_t)  + Rccl_t + Racl_t
+    Rmem_t, Rccl_t, Racl_t = Rproton(variables, parameters , operating_inputs)
+    Rp = sum(Rmem_t)  #+ Rccl_t + Racl_t
         # The cell voltage OCV = 0.98 according to experimental data
     Ucell_t = OCV - (i_fc_t) * (Rp + Re) - eta_c
     
@@ -110,7 +108,7 @@ def Ucell(t, variables, operating_inputs, parameters):
 def eta_ccl(variables, operating_inputs, parameters):
 
     # Extraction of the variables
-    Tccl, C_O2_ccl = variables['Tccl'], variables['C_O2_ccl']
+    Tccl, C_O2_ccl = operating_inputs['Tfc'], variables['C_O2_ccl']
     i_fc = operating_inputs['current_density'](0)
     f_drop = fdrop(variables, operating_inputs, parameters)
     i0_c_ref, kappa_c = parameters['i0_c_ref'], parameters['kappa_c']

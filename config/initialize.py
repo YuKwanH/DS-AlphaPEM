@@ -14,14 +14,14 @@ current_parameters = {'t_step': (0, 3600, 100, 1.5), 'i_step': (0.5e4, 1.5e4),
                                         'delta_pola': (30, 30, 0.1e4, 60), 'i_max_pola': 1.65e4, # 50A
                                         'i_EIS': 1.0e4, 'ratio_EIS': 0.05, 't_EIS': 15, 'f_EIS': (-3, 5, 90, 50)}
  
-undetermined_physical_parameters = {'epsilon_gdl': 0.55, "epsilon_cl": 0.3,
+undetermined_physical_parameters = {'epsilon_gdl': 0.5, "epsilon_cl": 0.3,
                                                                 'epsilon_mc': 0.399,'epsilon_c': 0.299, 
                                                                 'e': 3, 'kappa_co': 37.2, 'Re': 2.2e-6, 'tau': 1.01, 
                                                                 'i0_c_ref': 0.16, 'kappa_c': 0.1, 'C_scl': 1e8, 
                                                                 'a_slim': 0.4, 'b_slim': 0.5, 'a_switch': 0.5,
-                                                                "Hcl": 1.2e-5, "Hgdl": 2.8e-4, "OCV": 0.92}
+                                                                "Hcl": 2e-5, "Hgdl": 4e-4, "OCV": 0.98}
 
-computing_parameters = {'max_step': 0.1, 'n_gdl': 10,'n_mem':10,'n_group_pt':10,
+computing_parameters = {'max_step': 0.1, 'n_gdl': 10,'n_mem':3,'n_group_pt':10,
                                             't_purge': (2.4, 15), 'type_fuel_cell': "LEV-200", 'type_control': "Phi_des", 'type_purge': "constant_purge"}
 
 parameters = {**current_parameters, **accessible_physical_parameters,
@@ -75,10 +75,7 @@ def init_x(operating_inputs, parameters):
     C_v_agc, C_v_agdl, C_v_acl, C_v_ccl, C_v_cgdl, C_v_cgc = [C_v_ini/5] * 6
     s_agdl_init = [0.0] * (n_gdl-1)
     s_cgdl_init = [0.01 - 0.01 * i / (n_gdl-1) for i in range(n_gdl-1)]
-    s_acl_init = 0.0
-    s_ccl_init = 0.01
     s_boundary = 0  # Dirichlet boundary con
-    s_boundary = 0  # Dirichlet boundary condition
     C_Pt2_ccl = 0
     C_Pt_mem_init = [0] * (n_mem - 1) + [C_Pt2_ccl/2]
     C_H2_mem_init = [0] + [0] * (n_mem -1)
@@ -96,10 +93,8 @@ def init_x(operating_inputs, parameters):
     x0 = ([C_H2_agc] + [C_H2_agdl] * n_gdl + [C_H2_acl] + C_H2_mem_init +
                 C_O2_mem_init + [C_O2_ccl] + [C_O2_cgdl] * n_gdl + [C_O2_cgc] + [C_N2] +
                 [C_v_agc] + [C_v_agdl] * n_gdl + [C_v_acl, C_v_ccl+1] + [C_v_cgdl] * n_gdl + [C_v_cgc] +
-                [0] + s_agdl_init + [0, s_ccl_init] + s_cgdl_init + [s_boundary] +
-                [2] + [lambda_mem_ini] * n_mem + [lambda_mem_ini] + [eta_c_ini] +
-                [Pasm, Paem, Pcsm, Pcem, Phi_asm, Phi_aem, Phi_csm, Phi_cem] + 
-                [Wcp, Wa_inj, Wc_inj, Abp_a, Abp_c] + C_Pt_mem_init +
-                [C_Pt2_ccl, Hmem] + prd_init.tolist() + theta_CCL.tolist() +
-                [operating_inputs["Tfc"]] * 32)
+                [0] + s_agdl_init + [0.0, 0.01] + s_cgdl_init + [s_boundary] +
+                [2] + [lambda_mem_ini] * n_mem + [lambda_mem_ini] + 
+                [Wcp, Wa_inj, Wc_inj] + C_Pt_mem_init +
+                [C_Pt2_ccl, Hmem] + prd_init.tolist() + theta_CCL.tolist())
     return x0

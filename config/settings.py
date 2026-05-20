@@ -6,30 +6,19 @@ solver_variable_names = ['C_H2_agc', 'C_H2_agdl', 'C_H2_acl','C_H2_mem',
                                             'C_O2_mem', 'C_O2_ccl', 'C_O2_cgdl', 'C_O2_cgc', 'C_N2',
                                             'C_v_agc', 'C_v_agdl', 'C_v_acl', 'C_v_ccl', 'C_v_cgdl', 'C_v_cgc',
                                             's_agdl', 's_acl', 's_ccl', 's_cgdl',
-                                            'lambda_acl', 'lambda_ccl', 'lambda_mem', 'eta_c', 
-                                            'Pasm', 'Paem', 'Pcsm', 'Pcem', 'Phi_asm', 'Phi_aem', 'Phi_csm','Phi_cem',
-                                            'Wcp', 'Wa_inj', 'Wc_inj', 'Abp_a', 'Abp_c',
-                                            'C_Pt2_mem', 'C_Pt2_ccl', 'delta_mem', 'S_N_ccl', 'theta_ccl',
-                                            "Tagdl","Tacl","Tmem","Tccl", "Tcgdl"]
+                                            'lambda_acl', 'lambda_ccl', 'lambda_mem',
+                                            'Wcp', 'Wa_inj', 'Wc_inj', 
+                                            'C_Pt2_mem', 'C_Pt2_ccl', 'delta_mem', 'S_N_ccl', 'theta_ccl']
 
 solver_flux_names = ['Jv_a_in', 'Jv_a_out', 'Jv_c_in', 'Jv_c_out', 'J_H2_in', 'J_H2_out', 'J_O2_in', 'J_O2_out', 'J_N2_in', 'J_N2_out',    
                                     'Jv_agc_agdl', 'Jv_agdl_agdl', 'Jv_agdl_acl', 'Jv_cgdl_cgc', 'Jv_cgdl_cgdl', 'Jv_ccl_cgdl', 
-                                    'Jl_agdl_acl', 'Jl_agdl_agdl', 'Jl_agdl_agc', 'Jl_ccl_cgdl', 'Jl_cgdl_cgdl', 'Jl_cgdl_cgc',
-                                    's_front_agdl', 's_front_cgdl',
+                                    'Jl_agdl_acl', 'Jl_agdl_agdl', 'Jl_ccl_cgdl', 'Jl_cgdl_cgdl',
                                     'J_lambda_mem_acl', 'J_lambda_mem_ccl', 'J_lambda_mem',
                                     'J_H2_agc_agdl', 'J_H2_agdl_agdl', 'J_H2_agdl_acl', 'J_H2_acl_mem', 'J_H2_mem',
                                     'J_O2_ccl_cgdl', 'J_O2_cgdl_cgdl', 'J_O2_cgdl_cgc', 'J_O2_mem_ccl', 'J_O2_mem',
-                                    'JT_ccl_cgdl', 'JT_agdl_acl', 'JT_agdl', 'JT_cgdl','JT_mem_ccl','JT_acl_mem','JT_mem','JT_agc_agdl','JT_cgdl_cgc',
                                     'J_Pt2_mem',
-                                    'S_sorp_acl', 'S_sorp_ccl', 'Sp_acl', 'Sp_ccl','S_H2_acl','S_O2_ccl',
-                                    'Sv_cgdl','Sv_agdl','Sv_acl','Sv_ccl',
-                                    'Sl_agdl','Sl_acl','Sl_ccl','Sl_cgdl',
-                                    'Sre_acl','Sre_ccl','Sre_mem',
-                                    'Sr_acl','Sr_ccl',
-                                    'Sec_agdl','Sec_cgdl','Sec_acl','Sec_ccl',
-                                    'Sad_acl','Sad_ccl',
-                                    "Wasm_in", "Wasm_out", "Waem_in", "Waem_out", "Wcsm_in", "Wcsm_out", "Wcem_in", "Wcem_out",
-                                    "Wrd", "Ware", "Wv_asm_in", "Wv_aem_out", "Wv_csm_in", "Wv_cem_out"]
+                                    'S_sorp_acl', 'S_sorp_ccl', 'Sp_acl', 'Sp_ccl','S_H2_acl','S_O2_ccl', 'Sl_acl', 'Sl_ccl',
+                                    "Wrd"]
 
 
 # Display settings 
@@ -80,7 +69,7 @@ nodes_postfix = ["agc"] + ["agdl_" + str(i+1) for i in range(parameters["n_gdl"]
 nodes_names_vp = ["C_v_agc"] + [f"C_v_agdl_{i+1}" for i in range(parameters["n_gdl"])] + ["C_v_acl"] + ["C_v_ccl"] + [f"C_v_cgdl_{i+1}" for i in range(parameters["n_gdl"])] + ["C_v_cgc"]
 nodes_names_H2 = ["C_H2_agc"] + [f"C_H2_agdl_{i+1}" for i in range(parameters["n_gdl"])] + ["C_H2_acl"] + [f"C_H2_mem_{i+1}" for i in range(parameters["n_mem"])]
 nodes_name_O2 = [f"C_O2_mem_{i+1}" for i in range(parameters["n_mem"])] + ["C_O2_ccl"] + [f"C_O2_cgdl_{i+1}" for i in range(parameters["n_gdl"])] + ["C_O2_cgc"]
-nodes_names_s = [f"s_agdl_{i+1}" for i in range(parameters["n_gdl"])] + ["s_acl"] + ["s_ccl"] + [f"s_cgdl_{i+1}" for i in range(parameters["n_gdl"])]
+nodes_names_s = [f"s_agdl_{i+1}" for i in range(parameters["n_gdl"])] + [f"s_cgdl_{i+1}" for i in range(parameters["n_gdl"])]
 nodes_lambda = ["lambda_acl"] + [f"lambda_mem_{i+1}" for i in range(parameters["n_mem"])] + ["lambda_ccl"]
 nodes_T = ["Tagdl_" + str(i+1) for i in range(parameters["n_gdl"])] + ["Tacl"] + ["Tmem_" + str(i+1) for i in range(parameters["n_mem"])] + ["Tccl"] + ["Tcgdl_" + str(i+1) for i in range(parameters["n_gdl"])]
 
