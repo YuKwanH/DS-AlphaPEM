@@ -2,27 +2,28 @@ from model.coefficients import *
 from model.inst_values import *
 
 
-operating_inputs = {'current_density': lambda x: 0.1e4, 'Tfc': 333.15, 
-                                    'Pa_des': 1.5e5, 'Pc_des': 1.5e5,
-                                    'Phi_a_des': 0.0, 'Phi_c_des': 0.5,
-                                    'Sa': 1.2, 'Sc': 2.5,
-                                    'Imin_aux': 10}
-
 accessible_physical_parameters = {'Aact': 31e-4, 'Hmem': 1.2e-5, 'Hgc': 8e-4, 'Wgc': 4e-4, 'Lgc': 1.287} #m
 
 current_parameters = {'t_step': (0, 3600, 100, 1.5), 'i_step': (0.5e4, 1.5e4),
                                         'delta_pola': (30, 30, 0.1e4, 60), 'i_max_pola': 1.65e4, # 50A
                                         'i_EIS': 1.0e4, 'ratio_EIS': 0.05, 't_EIS': 15, 'f_EIS': (-3, 5, 90, 50)}
  
-undetermined_physical_parameters = {'epsilon_gdl': 0.5, "epsilon_cl": 0.3,
-                                                                'epsilon_mc': 0.399,'epsilon_c': 0.299, 
-                                                                'e': 3, 'kappa_co': 37.2, 'Re': 2.2e-6, 'tau': 1.01, 
-                                                                'i0_c_ref': 0.16, 'kappa_c': 0.1, 'C_scl': 1e8, 
-                                                                'a_slim': 0.4, 'b_slim': 0.5, 'a_switch': 0.5,
-                                                                "Hcl": 2e-5, "Hgdl": 4e-4, "OCV": 0.98}
+operating_inputs = {'current_density': lambda x: 0.1e4, 'Tfc': 353.15, 
+                                    'Pa_des': 1.8e5, 'Pc_des': 1.8e5,
+                                    'Phi_a_des': 0.0, 'Phi_c_des': 0.85,
+                                    'Sa': 1.2, 'Sc': 2.,
+                                    'Imin_aux': 10}
 
-computing_parameters = {'max_step': 0.1, 'n_gdl': 10,'n_mem':3,'n_group_pt':10,
-                                            't_purge': (2.4, 15), 'type_fuel_cell': "LEV-200", 'type_control': "Phi_des", 'type_purge': "constant_purge"}
+undetermined_physical_parameters = {'epsilon_gdl': 0.6, "epsilon_cl": 0.35,
+                                                                        'epsilon_mc': 0.399,'epsilon_c': 0.189, 
+                                                                        'e': 4, 'kappa_co': 37.2, 'Re': 2.2e-7, 'tau': 1.01, 
+                                                                        'i0_c_ref': 2.16, 'kappa_c': 2.9, 'C_scl': 1e8, 
+                                                                        'a_slim': 0.4, 'b_slim': 0.5, 'a_switch': 0.5,
+                                                                        "Hcl": 1e-5, "Hgdl": 2.e-4, "OCV": 0.95}
+
+computing_parameters = {'max_step': 0.1, 'n_gdl': 10,'n_mem':10,'n_group_pt':50,
+                                            't_purge': (2.4, 15), 'type_fuel_cell': "LEV-200", 'type_control': "Phi_des", 'type_purge': "constant_purge",
+                                            'aux_system': True}  # True: simulate the auxiliary system (compressor / BoP); False: ideal fixed supply
 
 parameters = {**current_parameters, **accessible_physical_parameters,
                           **undetermined_physical_parameters, **computing_parameters}
@@ -83,8 +84,6 @@ def init_x(operating_inputs, parameters):
     C_H2_agc, C_H2_agdl, C_H2_acl = C_H2_ini, C_H2_ini, C_H2_ini
     C_O2_ccl, C_O2_cgdl, C_O2_cgc = C_O2_ini, C_O2_ini, C_O2_ini
     C_N2 = C_N2_ini
-    Pasm, Paem, Pcsm, Pcem = Pasm_ini, Paem_ini, Pcsm_ini, Pcem_ini
-    Phi_asm, Phi_aem, Phi_csm, Phi_cem = Phi_asm_ini, Phi_aem_ini, Phi_csm_ini, Phi_cem_ini
     Wcp, Wa_inj, Wc_inj, Abp_a, Abp_c = Wcp_ini, Wa_inj_ini, Wc_inj_ini, Abp_a_ini, Abp_c_ini
     prd_init = initPRD(resolution=computing_parameters['n_group_pt'])
     theta_CCL = np.zeros(computing_parameters['n_group_pt'])

@@ -88,7 +88,7 @@ def dxdt_MEM(dif, x, epsilon_mc, Hcl, Hmem,n_mem, Ucell, Tfc,
     # dif[f'dC_H2_mem_{n_mem} / dt'] = (J_H2_mem[- 1] - 0) / (Hmem / n_mem)
     # Thickness degradation
     P_O2_ccl = x[f"C_O2_ccl"] * R * Tfc
-    dif['ddelta_mem / dt'] = -20.8 / (0.82 * 1980e3) * flourideReleaseRate(MT=Hmem, U=Ucell, Tmem=Tfc, PO2_ca=P_O2_ccl)
+    dif['ddelta_mem / dt'] = -20.8 / (0.82 * 1980e3) * flourideReleaseRate(MT=Hmem, U=Ucell, Tmem=Tfc, PO2_ca=P_O2_ccl, Hmem_init=1.2e-5)
 
 
 def dxdt_U(dif, i_fc, C_O2_ccl, eta_c, Hcl, i0_c_ref, kappa_c, C_scl, f_drop, ECSA, Tfc, **kwargs):

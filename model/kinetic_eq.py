@@ -99,7 +99,7 @@ def Ucell(t, variables, operating_inputs, parameters):
     i_fc_t = operating_inputs['current_density'](t)
     eta_c = (1 / f_drop * R * Tccl / (alpha_c * F) * np.log((i_fc) / i0_c_ref * (C_O2ref / C_O2_ccl) ** kappa_c) * np.exp(Eact / R * (1 / 353 - 1 / Tccl)))
     Rmem_t, Rccl_t, Racl_t = Rproton(variables, parameters , operating_inputs)
-    Rp = sum(Rmem_t)  #+ Rccl_t + Racl_t
+    Rp = sum(Rmem_t)  + Rccl_t + Racl_t
         # The cell voltage OCV = 0.98 according to experimental data
     Ucell_t = OCV - (i_fc_t) * (Rp + Re) - eta_c
     
@@ -178,15 +178,15 @@ def PtDetachment(Ucell, T, r):
     return kdet_ref * Mcc / rho_cc * np.exp((0.5 * F * n) / (R * T) * (Ucell - Ueq_4)) / r
 
 
-def flourideReleaseRate(MT, U, Tmem, PO2_ca):
+def flourideReleaseRate(MT, U, Tmem, PO2_ca, Hmem_init):
     """
 
     :return:
     """
     # Constant
-    A_1 = 1.2e-14  # Fitted constant (gram h-1cm-2)
-    alpha_eq = 0.53  # Equivalent transfer coefficient
-    e_M0 = 2e-5  # The initial membrane thickness (m)
+    A_1 = 5.5e-13  # Fitted constant (ug/(H m-2))
+    alpha_eq = 0.52  # Equivalent transfer coefficient
+    e_M0 = Hmem_init  # The initial membrane thickness (m)
     E_a = 75e3  # The equivalent activation energy (J/mol)
     T0 = 273.15 + 95
     P0 = 1e5

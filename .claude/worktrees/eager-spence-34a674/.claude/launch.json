@@ -3,18 +3,18 @@
   "configurations": [
     {
       "name": "pemfc-gui",
-      "runtimeExecutable": "D:\\PEMFC\\MFC2024\\.venv\\Scripts\\streamlit.exe",
+      "runtimeExecutable": "C:\\ProgramData\\anaconda3\\Scripts\\streamlit.exe",
       "runtimeArgs": [
         "run",
         "D:\\PEMFC\\MFC2024\\gui\\app.py",
         "--server.headless",
         "true",
         "--server.port",
-        "8770",
+        "8773",
         "--browser.gatherUsageStats",
         "false"
       ],
-      "port": 8770
+      "port": 8773
     }
   ]
 }

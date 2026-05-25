@@ -335,34 +335,3 @@ def initPRD(resolution=100, rmin=1e-8, rmax=1e-6, std=0.549, mu=0.538):
 
 def getECSA(prd, radius):
     return 4 * np.pi * trapezoid(y=(radius ** 2) * prd, x=radius)
-
-# ______________________________________Function which gives the integration event______________________________________
-def event_negative(t, y, operating_inputs, parameters, solver_variable_names):
-    """This function creates an event that will be checked at each step of solve_ivp integration. The integration stops
-    if one of the crucial variables (C_v, lambda, C_O2, C_H2) becomes negative (or smaller than 1e-5).
-
-    Parameters
-    ----------
-    t : float
-        Time (s).
-    y : numpy.ndarray
-        Numpy list of the solver variables.
-    operating_inputs : dict
-        Operating inputs of the fuel cell.
-    parameters : dict
-        Parameters of the fuel cell model.
-    solver_variable_names : list
-        Names of the solver variables.
-
-    Returns
-    -------
-    The difference between the minimum value of the crucial variables and 1e-5.
-    """
-
-    negative_x = {} # Dictionary to store the crucial variables
-    for index, key in enumerate(solver_variable_names):
-        if (key.startswith("C_v_")) or (key.startswith("lambda_")) or \
-                (key.startswith("C_O2_")) or (key.startswith("C_H2_")):
-            negative_x[key] = y[index]
-    return min(negative_x.values()) - 1e-5  # 1e-5 is a control param effect to stop the program before
-    #                                                        having negative values.

@@ -38,15 +38,47 @@ def _solve_with_fallback(dxdt, t_span, y0, method, max_step):
     return sol, True
 
 
+def _resolve_transient_model(model_variant, aux_system):
+    """Pick the actual transient model file to run.
+
+    The physical mapping is:
+      * ``dualscale.py``  -- transient WITHOUT balance-of-plant (no aux).
+      * ``dynamic.py``    -- transient WITH compressor / BoP (with aux).
+
+    So the auxiliary-system toggle (not the "Model variant" radio) is what
+    really selects the model file. If the user picks a combination that's
+    physically inconsistent, we silently route to the matching file and
+    return a note for the status strip:
+
+      Dual-scale + With aux   -> Dynamic   (dual-scale has no BoP code)
+      Dynamic    + Without aux-> Dual-scale (dynamic.py requires BoP;
+                                             else solver hits a
+                                             (181,) vs (218,) broadcast)
+      Dual-scale + Without aux-> Dual-scale (no change)
+      Dynamic    + With aux   -> Dynamic    (no change)
+    """
+    if aux_system and model_variant == "Dual-scale":
+        return "Dynamic", "auto-promoted: dual-scale has no BoP, ran dynamic.py instead"
+    if (not aux_system) and model_variant == "Dynamic":
+        return "Dual-scale", "auto-demoted: dynamic.py requires BoP, ran dual-scale instead"
+    return model_variant, None
+
+
 def run(params, op_inputs, model_variant, profile_func, t_span,
-        max_step=0.1, method="BDF", polar_sweep=None):
+        max_step=0.1, method="BDF", polar_sweep=None, aux_system=True):
     if model_variant == "Static":
         return _run_static(params, op_inputs, polar_sweep or {})
+
+    requested_variant = model_variant
+    model_variant, route_note = _resolve_transient_model(model_variant, aux_system)
 
     # Defensive copies — never mutate the dicts owned by st.session_state.
     params    = dict(params)
     op_inputs = dict(op_inputs)
     op_inputs["current_density"] = profile_func
+    # Auxiliary-system toggle: the model's dxdt reads parameters["aux_system"]
+    # and includes (True) or skips (False) the compressor / BoP equations.
+    params["aux_system"] = bool(aux_system)
 
     t0 = time.perf_counter()
     if model_variant == "Dynamic":
@@ -68,17 +100,25 @@ def run(params, op_inputs, model_variant, profile_func, t_span,
 
     runtime = time.perf_counter() - t0
     msg = getattr(sol, "message", "")
+    if route_note:
+        msg = (route_note + ". " + msg).strip(". ").strip() + ("." if msg else "")
     if fallback:
         msg = (f"BDF failed on a transient NaN; auto-retried with LSODA. "
                f"Solver message: {msg}").strip()
+    aux_label = "aux: on" if aux_system else "aux: off"
+    label = model_variant
+    if model_variant != requested_variant:
+        label = f"{model_variant} (from {requested_variant})"
     status = {
         "runtime_s": runtime,
         "n_states": len(y0),
         "n_steps": len(sol.t),
         "success": bool(sol.success),
         "message": msg,
-        "model_variant": model_variant + (" → LSODA fallback" if fallback else ""),
+        "model_variant": (label + f" ({aux_label})"
+                          + (" → LSODA fallback" if fallback else "")),
         "kind": "transient",
+        "aux_system": bool(aux_system),
     }
     return model, sol, status
 

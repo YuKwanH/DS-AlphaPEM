@@ -1,0 +1,18 @@
+[theme]
+# Scientific-software palette: cool off-white page, white cards,
+# deep-navy accent. CSS in gui/style.py refines the look further.
+base = "light"
+primaryColor = "#1e3a5f"
+backgroundColor = "#f4f6fa"
+secondaryBackgroundColor = "#ffffff"
+textColor = "#1e293b"
+font = "sans serif"
+
+[server]
+# Let Streamlit auto-open the browser when the server starts. The launcher
+# script (run_gui.bat) re-opens the browser if a server is already running.
+headless = false
+runOnSave = false
+
+[browser]
+gatherUsageStats = false

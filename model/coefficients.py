@@ -29,6 +29,9 @@ gamma_evap = 1e-4  # Pa-1.s-1. It is the overall evaporation rate constant for w
 Kshape = 20  # . Mathematical factor governing lambda_eq smoothing.
 R_H2O = 1.8e-5
 R_iono = 5.56e-4
+R_O2 = 2.598e+02
+R_N2 = 296.8
+R_H2 = 4.1243e3
 
 # Model parameters for the voltage calculation
 C_O2ref = 3.39  # mol.m-3. It is the reference concentration of oxygen.
@@ -52,19 +55,19 @@ Kd = 1e-8  # m².s-1.Pa-1. It is the derivative constant of the PD controller at
 C_D = 0.5  # . It is the throttle discharge coefficient.
 Ksm_in = 2.0e-5  # kg.s-1.Pa-1. It is the supply manifold inlet orifice constant.
 Ksm_out = 1.0e-4  # kg.s-1.Pa-1. It is the supply manifold outlet orifice constant.
-Kem_in = 5.0e-4 # kg.s-1.Pa-1. It is the exhaust manifold inlet orifice constant.
+Kem_in = 1.0e-6 # kg.s-1.Pa-1. It is the exhaust manifold inlet orifice constant.
 Kem_out = 1.0e-6  # kg.s-1.Pa-1. It is the exhaust manifold outlet orifice constant.
 
 # Chemical constants for Pt surface reactions
-k1 = 1.1294180183708424e-15
+k1 = 2.7039881676192844e-14
 k1_ref = 1e-18
-k2 = 1.58261063296523e-17
+k2 = 1.4212927332005734e-14
 k2_ref = 1e-13
-k3 =  3.058419059781427e-14
-krdp = 4.247316005848088e-13
+k3 = 2.0835186763817587e-16
+krdp = 9.719840717584284e-08
 k4 = 0
 k5 = 0
-kdet_ref = 1.1359500154563962e-21
+kdet_ref = 6.920064249544073e-24
 rho_cc = 2.26
 Mcc = 12.01
 Ueq_4 = 0.2
