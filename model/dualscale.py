@@ -64,6 +64,7 @@ class PEMFC:
                 self.t = t
                 dif = dict.fromkeys(self._dif_keys, 0.0)
                 states = {n: x[i] for n, i in self._idx.items()}
+                self.parameters["Hmem"] = states["delta_mem"]
                 inst_states = dif_eq_int_values(t=t, x=states, operating_inputs=self.operating_inputs, parameters=self.parameters)
                 all_inst_states = {**self.parameters, **inst_states, **calculate_flows(t, states, self.operating_inputs, self.parameters, **inst_states)}
                 all_inst_values = {**all_inst_states, **self.operating_inputs, **self.inst_constant}
@@ -75,7 +76,8 @@ class PEMFC:
                 dxdt_ACL(dif, states, **all_inst_values)
                 dxdt_CCL(dif, states, **all_inst_values)
                 dxdt_MEM(dif, states, **all_inst_values)
-                dxdt_CP(dif, **states, **all_inst_values)
+                if self.parameters.get("aux_system", True):
+                        dxdt_CP(dif, **states, **all_inst_values)
                 dxdt_N2(dif, **all_inst_values)
                 dxdt_PRD(dif=dif, **states, **all_inst_values)
 
@@ -188,34 +190,93 @@ class PEMFC:
                         self.variables[key] = []
 
 
-def event_negative(t, y, operating_inputs, parameters, solver_variable_names, control_variables):
-    """This function creates an event that will be checked at each step of solve_ivp integration. The integration stops
-    if one of the crucial variables (C_v, lambda, C_O2, C_H2) becomes negative (or smaller than 1e-5).
+class PEMFC_0D:
 
-    Parameters
-    ----------
-    t : float
-        Time (s).
-    y : numpy.ndarray
-        Numpy list of the solver variables.
-    operating_inputs : dict
-        Operating inputs of the fuel cell.
-    parameters : dict
-        Parameters of the fuel cell model.
-    solver_variable_names : list
-        Names of the solver variables.
-    control_variables : dict
-        Variables controlled by the user.
+    def __init__(self, parameters, operating_inputs):
+        """
+        Dual-scale mathematical model of a fuel cell
+        Walid, AMU
+        Jay Tawee Pukrushpan, Michigan University
 
-    Returns
-    -------
-    The difference between the minimum value of the crucial variables and 1e-5.
-    """
+        Default unit:
+        Pressure: Pa
+        surface: cm2
+        volume: cm^3
+        temperature: K
+        weight: kg
+        time: second
 
-    negative_solver_variables = {} # Dictionary to store the crucial variables
-    for index, key in enumerate(solver_variable_names):
-        if (key.startswith("C_v_")) or (key.startswith("lambda_")) or \
-                (key.startswith("C_O2_")) or (key.startswith("C_H2_")):
-            negative_solver_variables[key] = y[index]
-    return min(negative_solver_variables.values()) - 1e-5  # 1e-5 is a control parameter to stop the program before
-    #                                                        having negative values.
+        :param P_nom: the rated power of the fuel cell
+        """
+        self.parameters = parameters
+        self.operating_inputs = operating_inputs
+        self.states = {"Ucell": 0.8}
+        self.fluxes = {"Qia_H2": 0, "Qia_vp": 0, "Qic_O2": 0, "Qic_N2": 0, "Qic_vp": 0, "Qr_H2": 0, "Qr_O2": 0, "Qr_H2O": 0, "Qoa_H2": 0, "Qoa_vp": 0, "Qoc_O2": 0, "Qoc_N2": 0, "Qoc_vp": 0}
+        self.variable_names = ["MH2_an", "MH2O_an", "MO2_ca", "MN2_ca", "MH2O_ca", "Prm", "c_pt2_ccl", "Hmem", "S_N_ccl", "theta_ccl"]
+        # Micro-scale variables
+        dr = 1e-6 / self.parameters['n_group_pt']
+        self.parameters['r_m'] = (np.linspace(1e-8, 1e-6, self.parameters['n_group_pt'] + 1) + dr / 2)[1:]
+        self.parameters['prd0'] = initPRD(resolution=self.parameters['n_group_pt'])
+        index_prd = self.variable_names.index('S_N_ccl')
+        self.variable_names.pop(index_prd)
+        self.variable_names[index_prd:index_prd] = [f'S_N_ccl_{i}' for i in range(1, len(self.parameters['r_m']) + 1)]
+        index_theta_ccl = self.variable_names.index('theta_ccl')
+        self.variable_names.pop(index_theta_ccl)
+        self.variable_names[index_theta_ccl:index_theta_ccl] = [f'theta_ccl_{i}' for i in range(1, len(self.parameters['r_m']) + 1)]
+        self.record = {"Poa": [], "Poc": []}
+
+    def dxdt(self, t, state):
+
+        # Map the state vector to the corresponding variables
+        for index, key in enumerate(self.variable_names):
+            self.states[key] = state[index]
+
+        MH2_an, MH2O_an = self.states["MH2_an"], self.states["MH2O_an"]
+        MO2_ca, MN2_ca, MH2O_ca = self.states["MO2_ca"], self.states["MN2_ca"], self.states["MH2O_ca"]
+        Prm = self.states["Prm"]
+        c_pt2_ccl = self.states["c_pt2_ccl"]
+        Hmem = self.states["Hmem"]
+        PRD = [self.states[f'S_N_ccl_{i}'] for i in range(1, self.parameters['n_group_pt'] + 1)]
+        theta_ccl = [self.states[f'theta_ccl_{i}'] for i in range(1, self.parameters['n_group_pt'] + 1)]
+        Tdes, Pa_des, Pc_des = self.operating_inputs["Tfc"], self.operating_inputs["Pa_des"], self.operating_inputs["Pc_des"]
+        Phi_a_des, Phi_c_des = self.operating_inputs["Phi_a_des"], self.operating_inputs["Phi_c_des"]
+        Ucell = self.states["Ucell"]
+        iload = self.operating_inputs["current_density"](t) / 1e4  # A/cm2
+        Psat_ = Psat(Tdes)
+        Vol_an = self.parameters["Aact"] * (self.parameters["Hcl"] + self.parameters["Hgdl"]) * 1e-6  # cm3
+        Vol_ca = self.parameters["Aact"] * (self.parameters["Hcl"] + self.parameters["Hgdl"]) * 1e-6  # cm3
+
+
+        # Instantaneous values calculation
+        # ------------- Anode inlet conditions ------------- #
+        Pa_in = Pa_des
+        P_im = Pa_des
+        pca = (0.0009225603028 * P_im + 2.84870103138421) * 1e3  # 141232.746
+        Ja_in = (pca - Pa_des) * 10e-6  # kg/s
+        Pin_vp_a = Phi_a_des * Psat_  # Pressure of the inlet vapor mass flow 3.60
+        Pin_H2 = Pa_in - Pin_vp_a  # Pressure of the inlet vapor mass flow 3.61
+        humidityRatio = (Pin_vp_a / Pin_H2) * (M_H2O / M_H2)
+        J_H2_in =Ja_in / (1 + humidityRatio)
+        J_vp_in_a = Ja_in - J_H2_in
+        Pa_H2_in = self.states["MH2_an"] * R_H2 * Tdes / Vol_an
+        # ------------- Cathode inlet conditions ------------- #
+        Jc_in = 0.0289 # kg/s fixed air supply
+        Pc_in = Pc_des
+        Phi_c_in = self.operating_inputs["Phi_c_des"]
+        Pin_vp_c = Phi_c_des * Psat_  
+        Pair = Pc_des - Pin_vp_c
+        Pc_O2 = self.states["MO2_ca"] * R_O2 * Tdes / Vol_ca
+        Kh = (Pin_vp_c / Pair) * (M_H2O / (yO2_ext * M_O2 + (1 - yO2_ext) * M_N2))# Humidity ratio
+        KM_O2 = yO2_ext * M_O2 / (yO2_ext * M_O2 + (1 - yO2_ext) * M_N2)
+        J_air_in = Jc_in / (Kh + 1)
+        J_O2_in = J_air_in * KM_O2
+        J_N2_in = J_air_in * (1 - KM_O2)
+        J_vp_in_c = Jc_in - J_air_in  # Vapor
+        # ------------- Source terms ------------- #
+        S_H2 = -iload / (2 * F) * M_H2 # mol/s
+        S_O2 = -iload / (4 * F) * M_O2 # mol/s
+        S_H2O = -iload / (2 * F) * M_H2O  # mol/s
+                # ------------- Anode outlet conditions ------------- #
+        Pa_H2_out = self.states["MH2_an"] * R_H2 * Tdes / Vol_an
+        Kexaust_H2 = J_H2_in / S_H2
+        MH2O_sat_a = Psat_ * Vol_an / (R_H2 * Tdes)

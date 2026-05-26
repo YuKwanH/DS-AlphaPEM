@@ -80,24 +80,56 @@ def axis_label(name):
     return f"{label} ({unit})" if unit else label
 
 
-def render(state):
-    st.markdown("#### § 3 Results")
+def render(state, on_run=None):
+    st.markdown("#### Simulation")
 
+    # Run + Hold on the same row at the top of the section. Run is the
+    # primary action (navy), Hold is secondary and only appears after a
+    # successful run.
     result = state.get("last_result")
+    has_result = result is not None and result["status"].get("success")
+
+    run_col, hold_col = st.columns([3.5, 1])
+    with run_col:
+        if on_run is not None:
+            st.button("▶ Run simulation", type="primary",
+                      use_container_width=True,
+                      on_click=on_run, key="run_button_section")
+    with hold_col:
+        if has_result:
+            if st.button("📌 Hold", key="hold_button", use_container_width=True,
+                         help="Pin this result; the NEXT simulation will be plotted "
+                              "on top of it for direct comparison. Only one held "
+                              "slot — pressing Hold again replaces the previous pin."):
+                state["held_result"] = _snapshot_for_hold(result)
+
     if result is None:
-        st.info("Configure parameters and options on the left, then click **▶ Run** above.")
+        st.info("Configure parameters and options on the left, then click **▶ Run simulation** above.")
         return state
 
     status = result["status"]
     _status_strip(status)
 
+    # Held-result indicator with one-click release. Release is a compact
+    # ✖ icon button to keep the caption readable.
+    held = state.get("held_result")
+    if held is not None:
+        h_col, rel_col = st.columns([8, 1])
+        h_col.caption(
+            f"📌 **Held**: {held['label']}  ·  overlaid as dashed grey curves"
+        )
+        if rel_col.button("✖", key="release_button", use_container_width=True,
+                          help="Release / forget the held result."):
+            state["held_result"] = None
+            held = None
+
     if not status.get("success"):
         return state
 
     if status["kind"] == "polar":
-        _render_polar(result["polar"])
+        _render_polar(result["polar"], held)
     else:
-        _render_transient(result["model"], result["solution"])
+        _render_transient(result["model"], result["solution"], held)
 
     return state
 
@@ -118,10 +150,82 @@ def _status_strip(status):
         st.warning(status["message"])
 
 
-def _render_polar(polar):
+# ---------------------------------------------------------------------------
+# Hold / overlay helpers
+# ---------------------------------------------------------------------------
+def _snapshot_for_hold(result):
+    """Take a lightweight deep copy of just the arrays needed to re-plot.
+
+    We do NOT hold the live model object — its references can be huge or
+    contain solver state. We pull only ``variables`` and ``echem_traj``
+    for transient runs, and the i/Ucell arrays for polar runs.
+    """
+    status = result["status"]
+    # Short label: strip parenthetical aux note, prepend run timestamp.
+    raw = str(status.get("model_variant", "run"))
+    base = raw.split(" (")[0]
+    label = f"{base}"
+    if "aux" in raw:
+        label += f"  ({'aux on' if status.get('aux_system', True) else 'aux off'})"
+
+    if status["kind"] == "polar":
+        polar = result["polar"]
+        return {
+            "kind": "polar",
+            "label": label,
+            "polar": {
+                "i_A_m2":  np.asarray(polar["i_A_m2"]).copy(),
+                "Ucell_V": np.asarray(polar["Ucell_V"]).copy(),
+            },
+        }
+
+    model = result["model"]
+    return {
+        "kind": "transient",
+        "label": label,
+        "variables":  {k: np.asarray(v).copy()
+                       for k, v in getattr(model, "variables", {}).items()
+                       if hasattr(v, "__len__") and not isinstance(v, (str, dict))},
+        "echem_traj": {k: np.asarray(v).copy()
+                       for k, v in getattr(model, "echem_traj", {}).items()
+                       if hasattr(v, "__len__") and not isinstance(v, (str, dict))},
+    }
+
+
+# Visual style for the held overlay. Dashed grey so it's obviously a
+# reference, not the current result. Same line for every plot so the user
+# learns the convention.
+_HELD_KW = dict(linestyle="--", linewidth=1.3, alpha=0.6, color="#475569")
+
+
+def _overlay_held(ax, held, var_key, source="variables"):
+    """Draw the held trace for ``var_key`` on ``ax`` if it exists.
+
+    ``source`` is either ``"variables"`` (defaults) or ``"echem_traj"``
+    (for derived electrochemistry like Ucell/i_fc).
+    Returns True if anything was drawn (so the caller can add a legend).
+    """
+    if not held or held.get("kind") != "transient":
+        return False
+    t_h = np.asarray(held["variables"].get("t", []))
+    y_h = np.asarray(held.get(source, {}).get(var_key, []))
+    if t_h.size == 0 or y_h.size == 0:
+        return False
+    n = min(len(t_h), len(y_h))
+    ax.plot(t_h[:n], y_h[:n], label=f"held: {held['label']}", **_HELD_KW)
+    return True
+
+
+def _render_polar(polar, held=None):
     fig, ax = plt.subplots(figsize=(6, 4))
     i_A_cm2 = polar["i_A_m2"] / 1e4
-    ax.plot(i_A_cm2, polar["Ucell_V"], marker="o", linewidth=1.5, markersize=4)
+    ax.plot(i_A_cm2, polar["Ucell_V"], marker="o", linewidth=1.5, markersize=4,
+            label="current")
+    if held and held.get("kind") == "polar":
+        h = held["polar"]
+        ax.plot(h["i_A_m2"] / 1e4, h["Ucell_V"], marker="o", markersize=3,
+                label=f"held: {held['label']}", **_HELD_KW)
+        ax.legend(fontsize=8, loc="best")
     ax.set_xlabel("Current density (A/cm$^2$)")
     ax.set_ylabel("Cell voltage (V)")
     ax.set_title("Polarization curve")
@@ -130,25 +234,25 @@ def _render_polar(polar):
     st.pyplot(fig, clear_figure=True)
 
 
-def _render_transient(model, solution):
+def _render_transient(model, solution, held=None):
     tabs = st.tabs(["Cell performance", "Spatial profile", "Manifolds",
                     "Water content", "Degradation", "Custom"])
 
     with tabs[0]:
-        _tab_cell_performance(model)
+        _tab_cell_performance(model, held)
     with tabs[1]:
-        _tab_spatial(model, solution)
+        _tab_spatial(model, solution)  # snapshot overlay not meaningful
     with tabs[2]:
-        _tab_manifolds(model)
+        _tab_manifolds(model, held)
     with tabs[3]:
-        _tab_water(model)
+        _tab_water(model, held)
     with tabs[4]:
-        _tab_degradation(model)
+        _tab_degradation(model, held)
     with tabs[5]:
-        _tab_custom(model)
+        _tab_custom(model, held)
 
 
-def _tab_cell_performance(model):
+def _tab_cell_performance(model, held=None):
     t = np.asarray(model.variables.get("t", []))
     if t.size == 0:
         st.info("No time-domain output recorded.")
@@ -158,13 +262,19 @@ def _tab_cell_performance(model):
 
     fig, ax = plt.subplots(1, 2, figsize=(10, 3))
     if i_fc.size:
-        ax[0].plot(t[: len(i_fc)], i_fc)
+        ax[0].plot(t[: len(i_fc)], i_fc, label="current")
+    drew_h0 = _overlay_held(ax[0], held, "i_fc", source="echem_traj")
+    if drew_h0:
+        ax[0].legend(fontsize=7, loc="best")
     ax[0].set_xlabel(axis_label("t"))
     ax[0].set_ylabel(axis_label("i_fc"))
     ax[0].set_title("Load current")
 
     if Ucell.size:
-        ax[1].plot(t[: len(Ucell)], Ucell, color=_style.PALETTE[1])
+        ax[1].plot(t[: len(Ucell)], Ucell, color=_style.PALETTE[1], label="current")
+    drew_h1 = _overlay_held(ax[1], held, "Ucell", source="echem_traj")
+    if drew_h1:
+        ax[1].legend(fontsize=7, loc="best")
     ax[1].set_xlabel(axis_label("t"))
     ax[1].set_ylabel(axis_label("Ucell"))
     ax[1].set_title("Cell voltage")
@@ -188,7 +298,7 @@ def _tab_spatial(model, solution):
         st.error(f"Could not render spatial profile: {exc}")
 
 
-def _tab_manifolds(model):
+def _tab_manifolds(model, held=None):
     keys = [
         ("Phi_asm", "Anode supply RH"),
         ("Pasm",    "Anode supply pressure"),
@@ -204,19 +314,24 @@ def _tab_manifolds(model):
         st.info("No manifold data recorded.")
         return
     fig, axes = plt.subplots(4, 2, figsize=(10, 8))
+    any_held = False
     for ax, (key, title) in zip(axes.flatten(), keys):
         y = np.asarray(model.variables.get(key, []))
         if y.size:
-            ax.plot(t[: len(y)], y, linewidth=1.2)
+            ax.plot(t[: len(y)], y, linewidth=1.2, label="current")
+        if _overlay_held(ax, held, key):
+            any_held = True
         ax.set_title(title, fontsize=9)
         ax.set_xlabel(axis_label("t"))
         ax.set_ylabel(axis_label(key))
         ax.grid(True, alpha=0.3)
+    if any_held:
+        axes.flatten()[0].legend(fontsize=7, loc="best")
     fig.tight_layout()
     st.pyplot(fig, clear_figure=True)
 
 
-def _tab_water(model):
+def _tab_water(model, held=None):
     t = np.asarray(model.variables.get("t", []))
     if t.size == 0:
         st.info("No water-content data recorded.")
@@ -225,7 +340,9 @@ def _tab_water(model):
     for name, ax_i in zip(("lambda_acl", "lambda_ccl"), ax):
         y = np.asarray(model.variables.get(name, []))
         if y.size:
-            ax_i.plot(t[: len(y)], y, linewidth=1.4)
+            ax_i.plot(t[: len(y)], y, linewidth=1.4, label="current")
+        if _overlay_held(ax_i, held, name):
+            ax_i.legend(fontsize=7, loc="best")
         ax_i.set_title(name)
         ax_i.set_xlabel(axis_label("t"))
         ax_i.set_ylabel(axis_label(name))
@@ -251,7 +368,7 @@ def _tab_water(model):
         st.pyplot(fig2, clear_figure=True)
 
 
-def _tab_degradation(model):
+def _tab_degradation(model, held=None):
     t = np.asarray(model.variables.get("t", []))
     if t.size == 0:
         st.info("No degradation data recorded.")
@@ -259,7 +376,9 @@ def _tab_degradation(model):
     fig, ax = plt.subplots(1, 2, figsize=(10, 3))
     delta = np.asarray(model.variables.get("delta_mem", []))
     if delta.size:
-        ax[0].plot(t[: len(delta)], delta, linewidth=1.4)
+        ax[0].plot(t[: len(delta)], delta, linewidth=1.4, label="current")
+    if _overlay_held(ax[0], held, "delta_mem"):
+        ax[0].legend(fontsize=7, loc="best")
     ax[0].set_xlabel(axis_label("t"))
     ax[0].set_ylabel(axis_label("delta_mem"))
     ax[0].set_title("Membrane thinning")
@@ -267,7 +386,9 @@ def _tab_degradation(model):
 
     s_n = np.asarray(model.echem_traj.get("S_N", []))
     if s_n.size:
-        ax[1].plot(t[: len(s_n)], s_n, linewidth=1.4)
+        ax[1].plot(t[: len(s_n)], s_n, linewidth=1.4, label="current")
+    if _overlay_held(ax[1], held, "S_N", source="echem_traj"):
+        ax[1].legend(fontsize=7, loc="best")
     ax[1].set_xlabel(axis_label("t"))
     ax[1].set_ylabel(axis_label("S_N"))
     ax[1].set_title("Pt active surface")
@@ -276,7 +397,7 @@ def _tab_degradation(model):
     st.pyplot(fig, clear_figure=True)
 
 
-def _tab_custom(model):
+def _tab_custom(model, held=None):
     options = sorted(k for k in model.variables.keys() if k != "t")
     if not options:
         st.info("No variables recorded.")
@@ -288,12 +409,16 @@ def _tab_custom(model):
     t = np.asarray(model.variables["t"])
     fig, ax = plt.subplots(figsize=(9, 3.5))
     units = set()
+    drew_held = False
     for name in picks:
         y = np.asarray(model.variables[name])
         label, unit = lookup_unit(name)
         legend = f"{name} [{unit}]" if unit else name
         ax.plot(t[: len(y)], y, label=legend, linewidth=1.2)
         units.add(unit)
+        # Overlay the held trace for the same variable if available.
+        if _overlay_held(ax, held, name):
+            drew_held = True
     ax.set_xlabel(axis_label("t"))
     if len(units) == 1:
         only_unit = next(iter(units))
