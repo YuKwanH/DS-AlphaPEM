@@ -80,29 +80,35 @@ def axis_label(name):
     return f"{label} ({unit})" if unit else label
 
 
-def render(state):
-    st.markdown("#### § 3 Results")
+def render(state, on_run=None):
+    st.markdown("#### Simulation")
 
+    # Run + Hold on the same row at the top of the section. Run is the
+    # primary action (navy), Hold is secondary and only appears after a
+    # successful run.
     result = state.get("last_result")
-    if result is None:
-        st.info("Configure parameters and options on the left, then click **▶ Run** above.")
-        return state
+    has_result = result is not None and result["status"].get("success")
 
-    status = result["status"]
-
-    # Status strip + Hold button on the same row. The button column needs
-    # enough room for the "📌 Hold" text to stay on a single line; ratio
-    # [3.5, 1] reserves ~22 % of the result column for the button.
-    strip_col, hold_col = st.columns([3.5, 1])
-    with strip_col:
-        _status_strip(status)
+    run_col, hold_col = st.columns([3.5, 1])
+    with run_col:
+        if on_run is not None:
+            st.button("▶ Run simulation", type="primary",
+                      use_container_width=True,
+                      on_click=on_run, key="run_button_section")
     with hold_col:
-        if status.get("success"):
+        if has_result:
             if st.button("📌 Hold", key="hold_button", use_container_width=True,
                          help="Pin this result; the NEXT simulation will be plotted "
                               "on top of it for direct comparison. Only one held "
                               "slot — pressing Hold again replaces the previous pin."):
                 state["held_result"] = _snapshot_for_hold(result)
+
+    if result is None:
+        st.info("Configure parameters and options on the left, then click **▶ Run simulation** above.")
+        return state
+
+    status = result["status"]
+    _status_strip(status)
 
     # Held-result indicator with one-click release. Release is a compact
     # ✖ icon button to keep the caption readable.

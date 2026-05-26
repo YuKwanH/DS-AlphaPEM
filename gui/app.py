@@ -146,7 +146,7 @@ def main():
             panel_options.render(st.session_state)
     with col_r:
         with st.container(height=RESULTS_HEIGHT, border=True):
-            panel_results.render(st.session_state)
+            panel_results.render(st.session_state, on_run=_trigger_run)
         with st.container(height=SAVE_HEIGHT, border=True):
             panel_save.render(st.session_state)
 

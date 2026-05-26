@@ -40,6 +40,50 @@ PALETTE = [
 _STREAMLIT_CSS = """
 <style>
 /* ===========================================================================
+   Hero title block (centered Playfair Display + Inter caps subtitle)
+   The structure injected from gui/app.py is:
+     <div class="pemfc-hero">
+       <div class="title">PEMFC <span class="accent">Simulator</span></div>
+       <div class="rule"></div>
+       <div class="subtitle">…</div>
+     </div>
+   =========================================================================== */
+.pemfc-hero {
+    text-align: center;
+    margin: 0.4rem 0 1.1rem 0;
+    padding: 0;
+}
+.pemfc-hero .title {
+    font-family: "Playfair Display", "Cormorant Garamond", Georgia, serif !important;
+    font-size: 2.85rem !important;
+    font-weight: 700 !important;
+    color: #0f172a;
+    letter-spacing: -0.018em;
+    line-height: 1.05;
+    margin: 0;
+}
+.pemfc-hero .title .accent {
+    color: #1e3a5f;
+    font-style: italic;
+    font-weight: 600;
+}
+.pemfc-hero .rule {
+    width: 56px;
+    height: 2px;
+    background: #1e3a5f;
+    margin: 0.55rem auto 0.55rem auto;
+    border-radius: 2px;
+}
+.pemfc-hero .subtitle {
+    font-family: "Inter", -apple-system, "Segoe UI", Arial, sans-serif !important;
+    font-size: 0.75rem !important;
+    font-weight: 500;
+    color: #64748b;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+}
+
+/* ===========================================================================
    Design tokens
    =========================================================================== */
 :root {
