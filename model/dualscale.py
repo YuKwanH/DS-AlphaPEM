@@ -190,7 +190,6 @@ class PEMFC:
                         self.variables[key] = []
 
 
-
 class PEMFC_0D:
     """0D PEMFC model following Pukrushpan's lumped-parameter formulation
     (Pukrushpan, Stefanopoulou & Peng 2003, Ch.3 + Ch.5.1), with variable names
@@ -288,82 +287,78 @@ class PEMFC_0D:
         self._n_states = len(self.variable_names)
         self.t = 0
 
-    @staticmethod
-    def Ucell(i_fc, Tfc, P_H2, P_O2, P_c, lambda_mem, Hmem):
-        """Pukrushpan's cell terminal voltage (Stefanopoulou & Peng 2003 eq.
-        3.18 with the regression coefficients of eq. 3.21).
+    def Ucell(self, i_fc, Tfc, P_H2, P_O2, P_c, lambda_mem, Hmem):
+        """Hybrid cell terminal voltage for the 0D model:
 
-        ``Vfc = E - vact - vohm - vconc``, where each loss is computed from the
-        polynomial regression Pukrushpan fitted on polarization data:
+            Ucell = OCV - eta_c - v_ohm - v_conc
 
-        - Open-circuit (Nernst) voltage E
-        - Activation loss ``vact = v0 + va * (1 - exp(-c1*i))``
-        - Ohmic loss    ``vohm = i * Rohm``  with Rohm = Hmem / sigma_m
-        - Concentration loss ``vconc = i * (c2*i/imax)^c3``
+        - ``OCV``                          : calibrated open-circuit voltage
+          (replaces Pukrushpan's Nernst E so the calibration handle is meaningful
+          and includes the parasitic / crossover OCV offset).
+        - ``eta_c`` (Raphael's eq. 1.67)   : Butler-Volmer / Tafel cathode
+          overpotential driven by ``i0_c_ref``, ``kappa_c``, ``alpha_c``, ``Eact``
+          and the lumped cathode O2 concentration. **Replaces Pukrushpan's
+          regressed v_act** so OCV / i0_c_ref / kappa_c are live calibration
+          knobs.
+        - ``v_ohm = i * (Rohm + Re)``      : Pukrushpan's Springer-style
+          conductivity (b2 = 350) with the piecewise floor at lambda = 1 to keep
+          the dry-membrane startup stable. ``Re`` is the calibrated electronic
+          resistance.
+        - ``v_conc = i * (c2 * i / i_max)^c3`` : Pukrushpan's concentration
+          loss term, with ``c2``, ``c3``, ``i_max`` exposed as calibration
+          handles (defaults reproduce Pukrushpan's published regression).
 
-        Inputs are in SI: ``i_fc`` in A.m-2, ``Tfc`` in K, pressures in Pa,
-        ``Hmem`` in m. Internally the function rescales to Pukrushpan's
-        CGS / bar units (current in A.cm-2, pressures in bar / atm, resistance
-        in Ohm.cm2).
+        Inputs are SI: ``i_fc`` in A.m-2, ``Tfc`` in K, pressures in Pa,
+        ``Hmem`` in m. Internally the function uses CGS units where Pukrushpan
+        did (current in A.cm-2, resistance in Ohm.cm2) and returns the
+        membrane resistance in Ohm.m2 for HFR storage.
 
-        Returns a dict with the voltage breakdown plus the membrane resistance
-        in SI (Ohm.m2) so the caller can report HFR consistently with the rest
-        of the model. Intended as a private helper of ``PEMFC_0D``; callers
-        inside the class should invoke it through ``self.Ucell(...)``.
+        Intended as a private helper of ``PEMFC_0D``; callers inside the class
+        should invoke it through ``self.Ucell(...)``.
         """
+        params = self.parameters
+        OCV       = params.get('OCV',       0.98)
+        i0_c_ref  = params.get('i0_c_ref',  1.0)
+        kappa_c   = params.get('kappa_c',   1.0)
+        Re        = params.get('Re',        0.0)
+        i_max     = params.get('i_max',     2.2)    # A.cm-2
+        c2_param  = params.get('c2',        1.0)
+        c3_param  = params.get('c3',        2.0)
+
         # ---- unit conversions ----
-        i = max(i_fc * 1e-4, 1e-6)            # A.cm-2, clamp to avoid log(0)
-        pH2 = max(P_H2 / 1e5, 1e-9)           # bar
-        pO2 = max(P_O2 / 1e5, 1e-9)           # bar
-        pca = max(P_c  / 1e5, 1e-9)           # bar
-        psat = Psat(Tfc) / 1e5                # bar
-        pa_dry_atm = max(pca - psat, 1e-9) / 1.01325  # atm
+        i_cm = max(i_fc * 1e-4, 1e-6)                # A.cm-2
 
-        # ---- E : Nernst open-circuit (eq. 3.21) ----
-        E = (1.229
-             - 8.5e-4 * (Tfc - 298.15)
-             + 4.308e-5 * Tfc * (np.log(pH2 / 1.01325)
-                                 + 0.5 * np.log(pO2 / 1.01325)))
+        # Lumped cathode O2 concentration (mol.m-3) recovered from partial pressure
+        C_O2_c = P_O2 / (R * Tfc)
 
-        # ---- vact : activation loss (eq. 3.21) ----
-        v0 = (0.279
-              - 8.5e-4 * (Tfc - 298.15)
-              + 4.308e-5 * Tfc * (np.log(pa_dry_atm)
-                                  + 0.5 * np.log(0.1173 * pa_dry_atm)))
-        arg = pO2 / 0.1173 + psat        # atm-ish ratio used in c2 / va regressions
-        va = ((-1.618e-5 * Tfc - 1.618e-2) * arg ** 2
-              + (1.8e-4 * Tfc - 0.166) * arg
-              + (-5.8e-4 * Tfc + 0.5736))
-        c1 = 10.0
-        vact = v0 + va * (1.0 - np.exp(-c1 * i))
+        # ---- eta_c : Raphael's cathode overpotential (no flooding, f_drop = 1) ----
+        eta_arg = (max(i_fc, 1e-10) / max(i0_c_ref, 1e-12)
+                   * (C_O2ref / max(C_O2_c, 1e-12)) ** kappa_c)
+        eta_c = (R * Tfc / (alpha_c * F)
+                 * np.log(max(eta_arg, 1e-30))
+                 * np.exp(Eact / R * (1.0 / 353.0 - 1.0 / Tfc)))
 
-        # ---- vohm : ohmic loss (eq. 3.21) ----
-        # Springer-style membrane conductivity (b1 fitted to Nafion 117, b2
-        # fitted by Pukrushpan to his polarisation data).
-        b1 = 0.005139 * lambda_mem - 0.00326
+        # ---- v_ohm : Springer (Pukrushpan b2 = 350, lambda floor at 1) + Re ----
+        lam_eff = max(lambda_mem, 1.0)
+        b1 = 0.005139 * lam_eff - 0.00326
         b2 = 350.0
-        sigma_m = max(b1, 1e-9) * np.exp(b2 * (1.0 / 303.0 - 1.0 / Tfc))   # 1/(Ohm.cm)
-        tm = Hmem * 100.0                                                  # m -> cm
-        Rohm = tm / max(sigma_m, 1e-12)                                    # Ohm.cm2
-        vohm = i * Rohm
+        sigma_m = b1 * np.exp(b2 * (1.0 / 303.0 - 1.0 / Tfc))               # 1/(Ohm.cm)
+        tm = Hmem * 100.0                                                    # m -> cm
+        Rohm_cm2 = tm / max(sigma_m, 1e-12)                                  # Ohm.cm2
+        Rohm_m2 = Rohm_cm2 * 1e-4                                            # Ohm.m2
+        v_ohm = i_fc * (Rohm_m2 + Re)                                        # V
 
-        # ---- vconc : concentration loss (eq. 3.21) ----
-        if arg < 2.0:
-            c2 = (7.16e-4 * Tfc - 0.622) * arg + (-1.45e-3 * Tfc + 1.68)
-        else:
-            c2 = (8.66e-5 * Tfc - 0.068) * arg + (-1.6e-4 * Tfc + 0.54)
-        imax = 2.2          # A.cm-2 (Pukrushpan's limit current density)
-        c3 = 2.0
-        vconc = i * (c2 * i / imax) ** c3
+        # ---- v_conc : Pukrushpan's concentration loss with calibrated c2, c3, i_max ----
+        v_conc = i_cm * (c2_param * i_cm / max(i_max, 1e-6)) ** c3_param
 
-        Vfc = E - vact - vohm - vconc
+        Vfc = OCV - eta_c - v_ohm - v_conc
         return {
             'Ucell':   float(Vfc),
-            'E':       float(E),
-            'vact':    float(vact),
-            'vohm':    float(vohm),
-            'vconc':   float(vconc),
-            'Rohm_m2': float(Rohm * 1e-4),   # Ohm.cm2 -> Ohm.m2 for HFR storage
+            'E':       float(OCV),    # report OCV in the E slot for backwards-compat
+            'vact':    float(eta_c),  # report eta_c in the vact slot ditto
+            'vohm':    float(v_ohm),
+            'vconc':   float(v_conc),
+            'Rohm_m2': float(Rohm_m2),
         }
 
     def dxdt(self, t, x):
@@ -396,9 +391,16 @@ class PEMFC_0D:
         Psat_fc = Psat(Tfc)
         Psat_ext = Psat(Text)
 
-        # Lumped gas-phase volume (m3): GC + porous GDL + porous CL
-        Vol_a = Aact * (Hgc + epsilon_gdl * Hgdl + epsilon_cl * Hcl)
-        Vol_c = Aact * (Hgc + epsilon_gdl * Hgdl + epsilon_cl * Hcl)
+        # Lumped gas-phase volume (m3): GC + porous GDL + porous CL.
+        # The geometric formula is the default; ``Vol_a`` / ``Vol_c`` can also
+        # be passed directly in ``parameters`` so they become live calibration
+        # handles. A smaller volume makes the chamber concentrations respond
+        # faster to the in/out flows and to ORR consumption -- this shows up
+        # most strongly in eta_c through C_O2_c, so calibrating the volumes is
+        # a useful proxy for stack-specific GC / GDL / CL geometry.
+        Vol_geom = Aact * (Hgc + epsilon_gdl * Hgdl + epsilon_cl * Hcl)
+        Vol_a = self.parameters.get('Vol_a', Vol_geom)
+        Vol_c = self.parameters.get('Vol_c', Vol_geom)
 
         # ---- Cell chamber state ----
         C_H2_a, C_v_a = states['C_H2_a'], states['C_v_a']
