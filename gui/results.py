@@ -103,12 +103,38 @@ def render(state, on_run=None):
                               "slot — pressing Hold again replaces the previous pin."):
                 state["held_result"] = _snapshot_for_hold(result)
 
+    # 0D benchmark toggle. When ticked, the NEXT Run will also execute the
+    # lumped-parameter 0D model (PEMFC_0D) and overlay its polarisation
+    # curve (in polar mode) or expose its state variables in the Custom
+    # tab (in transient mode).
+    state["benchmark_0d"] = st.checkbox(
+        "Compare with 0D benchmark",
+        value=bool(state.get("benchmark_0d", False)),
+        key="benchmark_0d_checkbox",
+        help="Runs the 0D lumped-parameter PEMFC model with the same "
+             "parameters / load profile alongside your main simulation. "
+             "Polar mode: the 0D polarisation curve is overlaid directly. "
+             "Transient mode: 0D state variables appear in the Custom tab "
+             "(prefixed '0D:').",
+    )
+
     if result is None:
         st.info("Configure parameters and options on the left, then click **▶ Run simulation** above.")
         return state
 
     status = result["status"]
     _status_strip(status)
+    # 0D benchmark status strip (a thin caption under the main status).
+    bench = result.get("benchmark_0d")
+    if bench is not None:
+        bst = bench.get("status", {})
+        if bst.get("success"):
+            tag = (f"n_points: {bst.get('n_points', '–')}"
+                   if bst.get("kind") == "polar"
+                   else f"n_steps: {bst.get('n_steps', '–')}")
+            st.caption(f"0D benchmark · runtime: **{bst.get('runtime_s', 0):.2f} s** · {tag} · ✓ ok")
+        else:
+            st.warning(f"0D benchmark failed: {bst.get('message', 'unknown error')}")
 
     # Held-result indicator with one-click release. Release is a compact
     # ✖ icon button to keep the caption readable.
@@ -126,10 +152,16 @@ def render(state, on_run=None):
     if not status.get("success"):
         return state
 
+    bench_polar     = (bench["polar"]      if (bench and bench.get("polar")     is not None) else None)
+    bench_variables = (bench["variables"]  if (bench and bench.get("variables")) else {})
+    bench_echem     = (bench["echem_traj"] if (bench and bench.get("echem_traj")) else {})
+
     if status["kind"] == "polar":
-        _render_polar(result["polar"], held)
+        _render_polar(result["polar"], held, bench_polar=bench_polar)
     else:
-        _render_transient(result["model"], result["solution"], held)
+        _render_transient(result["model"], result["solution"], held,
+                          bench_variables=bench_variables,
+                          bench_echem=bench_echem)
 
     return state
 
@@ -216,16 +248,21 @@ def _overlay_held(ax, held, var_key, source="variables"):
     return True
 
 
-def _render_polar(polar, held=None):
+def _render_polar(polar, held=None, bench_polar=None):
     fig, ax = plt.subplots(figsize=(6, 4))
     i_A_cm2 = polar["i_A_m2"] / 1e4
     ax.plot(i_A_cm2, polar["Ucell_V"], marker="o", linewidth=1.5, markersize=4,
-            label="current")
+            label="1D static")
+    if bench_polar is not None and len(bench_polar.get("i_A_m2", [])):
+        b_i = np.asarray(bench_polar["i_A_m2"]) / 1e4
+        b_u = np.asarray(bench_polar["Ucell_V"])
+        ax.plot(b_i, b_u, marker="s", linewidth=1.4, markersize=4,
+                color=_style.PALETTE[2], label="0D benchmark")
     if held and held.get("kind") == "polar":
         h = held["polar"]
         ax.plot(h["i_A_m2"] / 1e4, h["Ucell_V"], marker="o", markersize=3,
                 label=f"held: {held['label']}", **_HELD_KW)
-        ax.legend(fontsize=8, loc="best")
+    ax.legend(fontsize=8, loc="best")
     ax.set_xlabel("Current density (A/cm$^2$)")
     ax.set_ylabel("Cell voltage (V)")
     ax.set_title("Polarization curve")
@@ -234,7 +271,8 @@ def _render_polar(polar, held=None):
     st.pyplot(fig, clear_figure=True)
 
 
-def _render_transient(model, solution, held=None):
+def _render_transient(model, solution, held=None,
+                      bench_variables=None, bench_echem=None):
     tabs = st.tabs(["Cell performance", "Spatial profile", "Manifolds",
                     "Water content", "Degradation", "Custom"])
 
@@ -249,7 +287,10 @@ def _render_transient(model, solution, held=None):
     with tabs[4]:
         _tab_degradation(model, held)
     with tabs[5]:
-        _tab_custom(model, held)
+        # 0D variables exposed only in the Custom tab, prefixed "0D:".
+        _tab_custom(model, held,
+                    bench_variables=bench_variables or {},
+                    bench_echem=bench_echem or {})
 
 
 def _tab_cell_performance(model, held=None):
@@ -397,28 +438,53 @@ def _tab_degradation(model, held=None):
     st.pyplot(fig, clear_figure=True)
 
 
-def _tab_custom(model, held=None):
-    options = sorted(k for k in model.variables.keys() if k != "t")
+def _tab_custom(model, held=None, bench_variables=None, bench_echem=None):
+    bench_variables = bench_variables or {}
+    bench_echem     = bench_echem or {}
+
+    # Build the picker options: 1D state variables first, then 0D ones
+    # (prefixed "0D:") so they sort cleanly together at the bottom.
+    options_1d = sorted(k for k in model.variables.keys() if k != "t")
+    options_0d_vars  = sorted(f"0D: {k}" for k in bench_variables.keys() if k != "t")
+    options_0d_echem = sorted(f"0D: {k}" for k in bench_echem.keys()    if k != "t")
+    options = options_1d + options_0d_vars + options_0d_echem
     if not options:
         st.info("No variables recorded.")
         return
+    if options_0d_vars or options_0d_echem:
+        st.caption("0D-prefixed variables come from the lumped-parameter benchmark.")
+
     picks = st.multiselect("Variables", options=options,
                            default=options[:1], key="custom_picks")
     if not picks:
         return
-    t = np.asarray(model.variables["t"])
+
+    t_1d = np.asarray(model.variables.get("t", []))
+    t_0d = np.asarray(bench_variables.get("t", []))
+
     fig, ax = plt.subplots(figsize=(9, 3.5))
     units = set()
-    drew_held = False
     for name in picks:
-        y = np.asarray(model.variables[name])
-        label, unit = lookup_unit(name)
+        if name.startswith("0D: "):
+            key = name[4:]
+            # Look in 0D variables first, then echem_traj.
+            y = np.asarray(bench_variables.get(key,
+                            bench_echem.get(key, [])))
+            t_use = t_0d
+            label_unit, unit = lookup_unit(key)
+        else:
+            y = np.asarray(model.variables[name])
+            t_use = t_1d
+            label_unit, unit = lookup_unit(name)
         legend = f"{name} [{unit}]" if unit else name
-        ax.plot(t[: len(y)], y, label=legend, linewidth=1.2)
+        if y.size and t_use.size:
+            n = min(len(t_use), len(y))
+            ax.plot(t_use[:n], y[:n], label=legend, linewidth=1.2)
         units.add(unit)
-        # Overlay the held trace for the same variable if available.
-        if _overlay_held(ax, held, name):
-            drew_held = True
+        # Hold overlay only for 1D vars (the held snapshot stores 1D data).
+        if not name.startswith("0D: "):
+            _overlay_held(ax, held, name)
+
     ax.set_xlabel(axis_label("t"))
     if len(units) == 1:
         only_unit = next(iter(units))

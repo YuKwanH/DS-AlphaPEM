@@ -97,3 +97,151 @@ def init_x(operating_inputs, parameters):
                 [Wcp, Wa_inj, Wc_inj] + C_Pt_mem_init +
                 [C_Pt2_ccl, Hmem] + prd_init.tolist() + theta_CCL.tolist())
     return x0
+
+
+# ---------------------------------------------------------------------------
+# Initial state for the 1-D dynamic model PEMFC_dyn (model/dynamic.py)
+# ---------------------------------------------------------------------------
+def init_x_dyn(operating_inputs, parameters):
+    """Initial state vector for PEMFC_dyn (1-D model + balance-of-plant).
+
+    Returns a list of length **181** under the default mesh
+    (n_gdl = 10, n_mem = 10, n_pt_micro = 10 -- the last is hard-coded in
+    PEMFC_dyn.micro_parameters), matching the order of
+    ``PEMFC_dyn.solver_variable_names``. ``config.initialize.init_x`` returns
+    a 218-element vector sized for the dual-scale model and is NOT
+    compatible with PEMFC_dyn; this function exists to produce the
+    right-sized vector for the dynamic model file.
+
+    Variables are seeded from the operating-condition design point in
+    exactly the same way as ``init_x``: ideal-gas reactant concentrations,
+    equilibrium membrane water content, manifold pressures at the design
+    pressure, BoP flows at rest (the BoP controller spins them up in the
+    first few solver steps).
+    """
+    n_gdl = int(parameters['n_gdl'])
+    n_mem = int(parameters['n_mem'])
+    n_pt  = 10                       # PEMFC_dyn hardcodes n_group_ptParticle
+    Hmem  = float(parameters['Hmem'])
+
+    Tfc       = float(operating_inputs['Tfc'])
+    Pa_des    = float(operating_inputs['Pa_des'])
+    Pc_des    = float(operating_inputs['Pc_des'])
+    Phi_a_des = float(operating_inputs['Phi_a_des'])
+    Phi_c_des = float(operating_inputs['Phi_c_des'])
+
+    Phi_des_moy = 0.5 * (Phi_a_des + Phi_c_des)
+    P_des_moy   = 0.5 * (Pa_des + Pc_des)
+
+    Psat_fc = Psat(Tfc)
+    C_v_ini  = max(Phi_des_moy * Psat_fc / (R * Tfc), 1.0)
+    C_H2_ini = max((Pa_des - Phi_a_des * Psat_fc) / (R * Tfc), 1.0)
+    C_O2_dry = max((Pc_des - Phi_c_des * Psat_fc) / (R * Tfc), 1.0)
+    C_O2_ini = yO2_ext * C_O2_dry
+    C_N2_ini = (1.0 - yO2_ext) * C_O2_dry
+    s_ini = 0.001
+    lambda_ini = lambda_eq(C_v_ini, s_ini, Tfc, Kshape)
+
+    x = []
+    # C_H2 : agc, agdl*n_gdl, acl, mem*n_mem                          (22)
+    x.append(C_H2_ini)
+    x += [C_H2_ini] * n_gdl
+    x.append(C_H2_ini)
+    x += [0.1 * C_H2_ini] * n_mem
+    # C_O2 + C_N : mem*n_mem, ccl, cgdl*n_gdl, cgc, C_N               (23)
+    x += [0.1 * C_O2_ini] * n_mem
+    x.append(C_O2_ini)
+    x += [C_O2_ini] * n_gdl
+    x.append(C_O2_ini)
+    x.append(C_N2_ini)
+    # C_v : agc, agdl*n_gdl, acl, ccl, cgdl*n_gdl, cgc                (24)
+    x.append(C_v_ini)
+    x += [C_v_ini] * n_gdl
+    x.append(C_v_ini)
+    x.append(C_v_ini)
+    x += [C_v_ini] * n_gdl
+    x.append(C_v_ini)
+    # Liquid saturation : agdl*n_gdl, acl, ccl, cgdl*n_gdl            (22)
+    x += [s_ini] * n_gdl
+    x.append(s_ini)
+    x.append(s_ini)
+    x += [s_ini] * n_gdl
+    # Lambda : acl, ccl, mem*n_mem                                    (12)
+    x.append(lambda_ini)
+    x.append(lambda_ini)
+    x += [lambda_ini] * n_mem
+    # Cathode overpotential                                            (1)
+    x.append(0.3)
+    # Manifold pressures (Pasm, Paem, Pcsm, Pcem)                      (4)
+    x += [Pa_des, P_des_moy, Pc_des, P_des_moy]
+    # Manifold RHs (Phi_asm, Phi_aem, Phi_csm, Phi_cem)                (4)
+    x += [Phi_a_des, Phi_des_moy, Phi_c_des, Phi_des_moy]
+    # BoP setpoints at rest -- controller spins them up
+    # (Wcp, Wa_inj, Wc_inj, Abp_a, Abp_c)                              (5)
+    x += [0.0, 0.0, 0.0, 0.0, 0.0]
+    # Degradation : C_Pt2_mem*n_mem, C_Pt2_ccl, delta_mem,
+    #               S_N_ccl*n_pt, theta_ccl*n_pt                      (32)
+    x += [0.0] * n_mem
+    x.append(0.0)
+    x.append(Hmem)
+    x += [1.0] * n_pt
+    x += [0.0] * n_pt
+    # Temperatures : Tagdl*n_gdl, Tacl, Tmem*n_mem, Tccl, Tcgdl*n_gdl (32)
+    x += [Tfc] * n_gdl
+    x.append(Tfc)
+    x += [Tfc] * n_mem
+    x.append(Tfc)
+    x += [Tfc] * n_gdl
+    return x
+
+
+# ---------------------------------------------------------------------------
+# Dispatcher: pick the right initial state for the requested model
+# ---------------------------------------------------------------------------
+def init_x_for(model_variant, operating_inputs, parameters):
+    """Return an initial state vector sized for the requested model.
+
+    Each PEMFC model in ``model/`` has a different state-vector size:
+
+        ===================  ===========  ============================
+        model_variant value  N_states     Source
+        ===================  ===========  ============================
+        'dual-scale'         218          init_x (this module)
+        '0D'                 111          PEMFC_0D.default_initial_state
+        'dynamic'            181          init_x_dyn (this module)
+        'static'             None         PEMFC_stat is algebraic
+        ===================  ===========  ============================
+
+    The caller is responsible for passing the result into the right
+    constructor (or, for 'static', skipping the initial-state step
+    entirely). All variants are seeded from the same operating-condition
+    design point (Tfc, Pa_des, Pc_des, Phi_*_des).
+
+    The model_variant string is case-insensitive and tolerant of
+    underscores / hyphens / spaces; valid values include:
+
+        * 'dual-scale', 'dual_scale', 'dualscale', 'PEMFC'
+        * '0D', 'zero-D', 'PEMFC_0D', 'lumped'
+        * 'dynamic', 'dyn', 'PEMFC_dyn'
+        * 'static', 'PEMFC_stat', 'polar'
+    """
+    if not model_variant:
+        model_variant = 'dual-scale'
+    name = str(model_variant).lower().replace('_', '').replace('-', '').replace(' ', '')
+
+    if name in ('dualscale', 'pemfc', 'default'):
+        return init_x(operating_inputs, parameters)
+    if name in ('0d', 'zerod', 'pemfc0d', 'lumped'):
+        # Local import to avoid a top-level config -> model.dualscale dependency
+        # at import time (config/initialize is imported very early on startup).
+        from model.dualscale import PEMFC_0D
+        return PEMFC_0D.default_initial_state(parameters, operating_inputs)
+    if name in ('dynamic', 'dyn', 'pemfcdyn', 'bop'):
+        return init_x_dyn(operating_inputs, parameters)
+    if name in ('static', 'pemfcstat', 'polar', 'steadystate'):
+        return None                  # PEMFC_stat is an algebraic solver
+
+    raise ValueError(
+        f"Unknown model_variant {model_variant!r}. "
+        "Valid choices: 'dual-scale', '0D', 'dynamic', 'static'."
+    )

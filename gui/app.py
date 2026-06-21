@@ -29,6 +29,7 @@ from gui import options as panel_options
 from gui import results as panel_results
 from gui import save as panel_save
 from gui.runner import run as run_simulation
+from gui.runner import run_0d_companion
 
 
 def _ensure_state():
@@ -48,6 +49,7 @@ def _ensure_state():
     st.session_state.setdefault("visible_groups", panel_params.DEFAULT_VISIBLE)
     st.session_state.setdefault("last_result", None)
     st.session_state.setdefault("running", False)
+    st.session_state.setdefault("benchmark_0d", False)
 
     # One-time migration: profile_cfg used to store currents in A/cm^2;
     # values < 100 are almost certainly stale A/cm^2 entries that need to
@@ -103,6 +105,31 @@ def _trigger_run():
         st.session_state["last_result"] = {
             "model": model, "solution": sol_or_polar, "polar": None, "status": status,
         }
+
+    # 0D benchmark companion: if the user ticked "Compare with 0D model",
+    # also run the lumped-parameter 0D model with the same params, profile
+    # and time span (or polar sweep) and stash the result alongside.
+    st.session_state["last_result"]["benchmark_0d"] = None
+    if s.get("benchmark_0d"):
+        try:
+            with st.spinner("Running 0D benchmark..."):
+                bench = run_0d_companion(
+                    params=s["params"],
+                    op_inputs=s["op_inputs"],
+                    profile_func=profile_func,
+                    t_span=(s["t_start"], s["t_end"]),
+                    max_step=s["max_step"],
+                    method=s["method"],
+                    polar_sweep=polar_sweep,
+                )
+            st.session_state["last_result"]["benchmark_0d"] = bench
+        except Exception as exc:
+            st.session_state["last_result"]["benchmark_0d"] = {
+                "variables": {}, "echem_traj": {}, "polar": None,
+                "status": {"success": False, "message": str(exc),
+                           "kind": "polar" if polar_sweep else "transient",
+                           "runtime_s": 0.0, "n_steps": 0, "n_points": 0},
+            }
 
 
 def main():

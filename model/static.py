@@ -4,6 +4,22 @@ from model.coefficients import *
 from scipy.optimize import fsolve, brentq
 
 class PEMFC_stat:
+    """Steady-state polarization-curve solver for the PEMFC.
+
+    State-vector size (number of ODE equations):  **N_states = 0**
+
+    PEMFC_stat is NOT an ODE system. It is a steady-state algebraic solver:
+    given a current density ``i`` it returns the converged thermodynamic /
+    kinetic state (Ueq, eta_c, Rohm, Rmem, Rccl, Racl, ...) by fixed-point
+    iteration of the GDL profile and the membrane water-balance equations.
+    Use it to build polarization curves quickly without integrating any
+    transient. For comparison the time-domain models have:
+
+        * PEMFC (dual-scale)        : 218 states (default mesh)
+        * PEMFC_0D (lumped 0D)      : 111 states (default mesh)
+        * PEMFC_dyn (1-D with BoP)  : 181 states (default mesh)
+    """
+
     def __init__(self, parameters, operating_inputs):
         self.parameters = parameters
         self.operating_inputs = operating_inputs

@@ -3,8 +3,50 @@ from model.inst_values import *
 from model.state_eq import *
 
 class PEMFC_dyn:
-    
-    def __init__(self, parameters,   
+    """1-D dynamic PEMFC model with the full balance-of-plant (compressor,
+    supply/exhaust manifolds, humidifiers, back-pressure valves).
+
+    State-vector size (number of ODE equations):
+
+        N_states = 31 + 8 * n_gdl + 5 * n_mem + 2 * n_pt_micro
+
+    where ``n_pt_micro`` is hard-coded to 10 inside ``self.micro_parameters``
+    (Pt particle-size distribution resolution for the microscale).
+
+    With the default mesh in ``config/initialize.py``
+    (n_gdl = 10, n_mem = 10, n_pt_micro = 10) this gives **N_states = 181**.
+
+    Breakdown by category (default mesh values shown in parentheses):
+
+        * Reactant concentrations (45) :
+            C_H2_agc, C_H2_acl, C_H2_agdl_{1..n_gdl}, C_H2_mem_{1..n_mem},
+            C_O2_cgc, C_O2_ccl, C_O2_cgdl_{1..n_gdl}, C_O2_mem_{1..n_mem}, C_N
+        * Water-vapour concentrations (24) :
+            C_v_agc, C_v_acl, C_v_ccl, C_v_cgc,
+            C_v_agdl_{1..n_gdl}, C_v_cgdl_{1..n_gdl}
+        * Liquid-water saturation (22) :
+            s_acl, s_ccl, s_agdl_{1..n_gdl}, s_cgdl_{1..n_gdl}
+        * Membrane water content (12) :
+            lambda_acl, lambda_ccl, lambda_mem_{1..n_mem}
+        * Cathode overpotential (1)        :  eta_c
+        * Supply / exhaust manifolds (8)   :
+            Pasm, Paem, Pcsm, Pcem,  Phi_asm, Phi_aem, Phi_csm, Phi_cem
+        * Auxiliary mass flows (5)         :
+            Wcp, Wa_inj, Wc_inj, Abp_a, Abp_c
+        * Degradation (32) :
+            C_Pt2_ccl, C_Pt2_mem_{1..n_mem}, delta_mem,
+            S_N_ccl_{1..n_pt_micro}, theta_ccl_{1..n_pt_micro}
+        * Temperatures (32) :
+            Tacl, Tccl, Tagdl_{1..n_gdl}, Tcgdl_{1..n_gdl}, Tmem_{1..n_mem}
+
+    The ``initial_variable_values`` argument MUST be a list of length
+    ``N_states`` -- ``config.initialize.init_x`` produces a vector sized for
+    PEMFC (dual-scale, 218 elements) which is NOT compatible. See
+    ``gui/runner.py::_build_dyn_initial_state`` for a builder that returns
+    the correct 181-element vector.
+    """
+
+    def __init__(self, parameters,
                            operating_inputs,
                            initial_variable_values,
                            time_interval = None):
@@ -587,8 +629,8 @@ class PEMFC_dyn:
             prd_ccl = [last_solver_variables[f"S_N_ccl_{i + 1}"] for i in range(self.micro_parameters["n_group_ptParticle"])]
             theta_ccl =  [last_solver_variables[f"theta_ccl_{i + 1}"] for i in range(self.micro_parameters["n_group_ptParticle"])]
             #  recovery of Ucell.
-            Rmem_t, Rccl_t, Racl_t = Rproton(last_solver_variables, self.parameters)
-            Ueq_t = Ueq(last_solver_variables)
+            Rmem_t, Rccl_t, Racl_t = Rproton(last_solver_variables, self.parameters, self.operating_inputs)
+            Ueq_t = Ueq(last_solver_variables, self.operating_inputs)
             f_drop_t = fdrop(last_solver_variables, self.operating_inputs, self.parameters)
             if f_drop_t == 1:
                 self.ec_kinetics["eta_act"].append(self.variables["eta_c"][j])

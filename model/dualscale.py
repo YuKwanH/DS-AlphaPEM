@@ -7,8 +7,41 @@ from modules.nan_tracker import trace_nan
 
 
 class PEMFC:
+        """1-D dual-scale dynamic PEMFC model (macro-scale transport coupled with
+        a micro-scale Pt particle-size distribution).
 
-        def __init__(self, param, operating_inputs, 
+        State-vector size (number of ODE equations):
+
+            N_states = 18 + 6 * n_gdl + 4 * n_mem + 2 * n_group_pt
+
+        With the default mesh in ``config/initialize.py``
+        (n_gdl = 10, n_mem = 10, n_group_pt = 50) this gives **N_states = 218**.
+
+        Breakdown by category (default mesh values shown in parentheses):
+
+            * Reactant concentrations (45) :
+                C_H2_agc, C_H2_acl, C_H2_agdl_{1..n_gdl}, C_H2_mem_{1..n_mem},
+                C_O2_cgc, C_O2_ccl, C_O2_cgdl_{1..n_gdl}, C_O2_mem_{1..n_mem}, C_N
+            * Water-vapour concentrations (24) :
+                C_v_agc, C_v_acl, C_v_ccl, C_v_cgc,
+                C_v_agdl_{1..n_gdl}, C_v_cgdl_{1..n_gdl}
+            * Liquid-water saturation (22) :
+                s_acl, s_ccl, s_agdl_{1..n_gdl}, s_cgdl_{1..n_gdl}
+            * Membrane water content (12) :
+                lambda_acl, lambda_ccl, lambda_mem_{1..n_mem}
+            * Auxiliary mass flows (3) :
+                Wcp, Wa_inj, Wc_inj  (skipped when parameters["aux_system"] = False)
+            * Degradation (112) :
+                C_Pt2_ccl, C_Pt2_mem_{1..n_mem}, delta_mem,
+                S_N_ccl_{1..n_group_pt}, theta_ccl_{1..n_group_pt}
+
+        The ``aux_system`` flag in ``parameters`` controls whether the
+        compressor / BoP equations are integrated (True, default) or
+        frozen at their initial values (False, for steady-state polar
+        calibration where the BoP dynamics are irrelevant).
+        """
+
+        def __init__(self, param, operating_inputs,
                              variable_names, flux_names):
 
                 self.parameters = dict(param)
@@ -194,6 +227,24 @@ class PEMFC_0D:
     """0D PEMFC model following Pukrushpan's lumped-parameter formulation
     (Pukrushpan, Stefanopoulou & Peng 2003, Ch.3 + Ch.5.1), with variable names
     in Raphael Gass's notation.
+
+    State-vector size (number of ODE equations):
+
+        N_states = 11 + 2 * n_group_pt
+
+    With the default ``parameters['n_group_pt'] = 50`` from
+    ``config/initialize.py`` this gives **N_states = 111**.
+
+    Breakdown by category:
+
+        * Cell chambers, lumped (5) :  C_H2_a, C_v_a, C_O2_c, C_v_c, C_N2_c
+        * Membrane (2)             :  lambda_mem, Hmem
+        * Cathode manifolds (2)    :  Pcsm, Pcem
+        * Compressor (1)           :  Wcp
+        * Pt dissolution (1)       :  C_Pt2_ccl
+        * Pt particle dynamics (2 * n_group_pt) :
+              S_N_ccl_{1..n_group_pt}, theta_ccl_{1..n_group_pt}
+
 
     Pukrushpan's macro state vector (his eq. 5.1) is:
         x = [m_O2, m_H2, m_N2, w_cp, p_sm, m_sm, m_w,an, m_w,ca, p_rm]^T
