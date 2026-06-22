@@ -42,7 +42,7 @@ Eact = 73.2e3  # J.mol-1. It is the activation energy.
 
 # Model parameters for the balance of plant
 #   Physical parameters
-n_cell = 1 # . It is the number of cell in the stack.
+n_cell = 22 # . It is the number of cell in the stack.
 # Auxiliary system parameters
 Vsm = 5e-3  # m3. It is the supply manifold volume.
 Vem = 5e-3  # m3. It is the exhaust manifold volume.
