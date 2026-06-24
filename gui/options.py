@@ -37,7 +37,7 @@ def render(state):
     aux_choice = aux_col.selectbox(
         "Auxiliary system",
         options=AUX_CHOICES,
-        index=0 if state.get("aux_system", True) else 1,
+        index=0 if state.get("aux_system", False) else 1,
         key="opt_aux_system",
         help="With: simulate the compressor / balance-of-plant. "
              "Without: skip them — the cell sees an ideal, constant supply.",
@@ -54,7 +54,7 @@ def render(state):
     profile_kind = tp_col.selectbox(
         "Test profile",
         options=profiles.PROFILE_KINDS,
-        index=profiles.PROFILE_KINDS.index(state.get("profile_kind", "Constant")),
+        index=profiles.PROFILE_KINDS.index(state.get("profile_kind", "AST cycling")),
         key="opt_profile_kind",
     )
     state["profile_kind"] = profile_kind
@@ -137,8 +137,11 @@ def render(state):
         )
         c1, c2 = st.columns(2)
         pcfg["period"] = c1.number_input(
-            "Cycle period (s)", value=float(pcfg.get("period", 60.0)),
+            "Cycle period (s)", value=float(pcfg.get("period", 6.0)),
             min_value=1.0, step=1.0, format="%.1f", key="opt_period",
+        )
+        st.caption(
+            "Symmetric cosine wave — period 6 s gives 3 s at I_high + 3 s at I_low."
         )
         pcfg["smoothing"] = c2.number_input(
             "Smoothing", value=float(pcfg.get("smoothing", 4.0)),
@@ -232,7 +235,7 @@ def build_profile_func(state):
         )
     if pk == "AST cycling":
         return profiles.ast_cycling(
-            pcfg.get("period", 60.0),
+            pcfg.get("period", 6.0),
             pcfg.get("I_low", 1.0),
             pcfg.get("I_high", 25.8),
             pcfg.get("smoothing", 4.0),

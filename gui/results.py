@@ -229,6 +229,33 @@ def _snapshot_for_hold(result):
 # learns the convention.
 _HELD_KW = dict(linestyle="--", linewidth=1.3, alpha=0.6, color="#475569")
 
+# Visual style for the 0D benchmark overlay. Dashed green — distinct from the
+# held/grey overlay so users can tell a benchmark trace from a pinned one.
+_BENCH_KW = dict(linestyle="--", linewidth=1.4, alpha=0.85, color="#009E73")
+
+
+def _overlay_bench(ax, bench_t, bench_y, label="0D benchmark"):
+    """Plot a 0D-benchmark trace on ``ax`` if both arrays are non-empty.
+
+    Returns True if anything was drawn (so the caller can add a legend).
+    """
+    t = np.asarray(bench_t)
+    y = np.asarray(bench_y)
+    if t.size == 0 or y.size == 0:
+        return False
+    n = min(len(t), len(y))
+    ax.plot(t[:n], y[:n], label=label, **_BENCH_KW)
+    return True
+
+
+def _bench_time(bench_variables, bench_echem):
+    """Pick a time axis from the 0D bundle (echem first, then variables)."""
+    if bench_echem and "t" in bench_echem:
+        return bench_echem["t"]
+    if bench_variables and "t" in bench_variables:
+        return bench_variables["t"]
+    return []
+
 
 def _overlay_held(ax, held, var_key, source="variables"):
     """Draw the held trace for ``var_key`` on ``ax`` if it exists.
@@ -276,8 +303,12 @@ def _render_transient(model, solution, held=None,
     tabs = st.tabs(["Cell performance", "Spatial profile", "Manifolds",
                     "Water content", "Degradation", "Custom"])
 
+    bench_variables = bench_variables or {}
+    bench_echem     = bench_echem     or {}
     with tabs[0]:
-        _tab_cell_performance(model, held)
+        _tab_cell_performance(model, held,
+                              bench_variables=bench_variables,
+                              bench_echem=bench_echem)
     with tabs[1]:
         _tab_spatial(model, solution)  # snapshot overlay not meaningful
     with tabs[2]:
@@ -285,36 +316,46 @@ def _render_transient(model, solution, held=None,
     with tabs[3]:
         _tab_water(model, held)
     with tabs[4]:
-        _tab_degradation(model, held)
+        _tab_degradation(model, held,
+                         bench_variables=bench_variables,
+                         bench_echem=bench_echem)
     with tabs[5]:
-        # 0D variables exposed only in the Custom tab, prefixed "0D:".
+        # The Custom tab also exposes every 0D variable individually, prefixed
+        # "0D:", for plotting any quantity not covered by the named tabs.
         _tab_custom(model, held,
-                    bench_variables=bench_variables or {},
-                    bench_echem=bench_echem or {})
+                    bench_variables=bench_variables,
+                    bench_echem=bench_echem)
 
 
-def _tab_cell_performance(model, held=None):
+def _tab_cell_performance(model, held=None,
+                          bench_variables=None, bench_echem=None):
+    bench_variables = bench_variables or {}
+    bench_echem     = bench_echem     or {}
     t = np.asarray(model.variables.get("t", []))
     if t.size == 0:
         st.info("No time-domain output recorded.")
         return
     Ucell = np.asarray(model.echem_traj.get("Ucell", []))
-    i_fc = np.asarray(model.echem_traj.get("i_fc", []))
+    i_fc  = np.asarray(model.echem_traj.get("i_fc",  []))
+    bt    = _bench_time(bench_variables, bench_echem)
 
     fig, ax = plt.subplots(1, 2, figsize=(10, 3))
+
     if i_fc.size:
-        ax[0].plot(t[: len(i_fc)], i_fc, label="current")
+        ax[0].plot(t[: len(i_fc)], i_fc, label="1D")
     drew_h0 = _overlay_held(ax[0], held, "i_fc", source="echem_traj")
-    if drew_h0:
+    drew_b0 = _overlay_bench(ax[0], bt, bench_echem.get("i_fc", []))
+    if drew_h0 or drew_b0:
         ax[0].legend(fontsize=7, loc="best")
     ax[0].set_xlabel(axis_label("t"))
     ax[0].set_ylabel(axis_label("i_fc"))
     ax[0].set_title("Load current")
 
     if Ucell.size:
-        ax[1].plot(t[: len(Ucell)], Ucell, color=_style.PALETTE[1], label="current")
+        ax[1].plot(t[: len(Ucell)], Ucell, color=_style.PALETTE[1], label="1D")
     drew_h1 = _overlay_held(ax[1], held, "Ucell", source="echem_traj")
-    if drew_h1:
+    drew_b1 = _overlay_bench(ax[1], bt, bench_echem.get("Ucell", []))
+    if drew_h1 or drew_b1:
         ax[1].legend(fontsize=7, loc="best")
     ax[1].set_xlabel(axis_label("t"))
     ax[1].set_ylabel(axis_label("Ucell"))
@@ -409,16 +450,26 @@ def _tab_water(model, held=None):
         st.pyplot(fig2, clear_figure=True)
 
 
-def _tab_degradation(model, held=None):
+def _tab_degradation(model, held=None,
+                     bench_variables=None, bench_echem=None):
+    bench_variables = bench_variables or {}
+    bench_echem     = bench_echem     or {}
     t = np.asarray(model.variables.get("t", []))
     if t.size == 0:
         st.info("No degradation data recorded.")
         return
+    bt = _bench_time(bench_variables, bench_echem)
+
     fig, ax = plt.subplots(1, 2, figsize=(10, 3))
     delta = np.asarray(model.variables.get("delta_mem", []))
     if delta.size:
-        ax[0].plot(t[: len(delta)], delta, linewidth=1.4, label="current")
-    if _overlay_held(ax[0], held, "delta_mem"):
+        ax[0].plot(t[: len(delta)], delta, linewidth=1.4, label="1D")
+    drew_h_d = _overlay_held(ax[0], held, "delta_mem")
+    # 0D tracks total membrane thickness as ``Hmem`` — same physical quantity
+    # as 1D ``delta_mem`` (both are absolute thickness in metres), so overlay
+    # them on the same axes for a direct comparison.
+    drew_b_d = _overlay_bench(ax[0], bt, bench_variables.get("Hmem", []))
+    if drew_h_d or drew_b_d:
         ax[0].legend(fontsize=7, loc="best")
     ax[0].set_xlabel(axis_label("t"))
     ax[0].set_ylabel(axis_label("delta_mem"))
@@ -427,8 +478,10 @@ def _tab_degradation(model, held=None):
 
     s_n = np.asarray(model.echem_traj.get("S_N", []))
     if s_n.size:
-        ax[1].plot(t[: len(s_n)], s_n, linewidth=1.4, label="current")
-    if _overlay_held(ax[1], held, "S_N", source="echem_traj"):
+        ax[1].plot(t[: len(s_n)], s_n, linewidth=1.4, label="1D")
+    drew_h_s = _overlay_held(ax[1], held, "S_N", source="echem_traj")
+    drew_b_s = _overlay_bench(ax[1], bt, bench_echem.get("S_N", []))
+    if drew_h_s or drew_b_s:
         ax[1].legend(fontsize=7, loc="best")
     ax[1].set_xlabel(axis_label("t"))
     ax[1].set_ylabel(axis_label("S_N"))
