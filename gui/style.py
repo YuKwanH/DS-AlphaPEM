@@ -40,57 +40,13 @@ PALETTE = [
 _STREAMLIT_CSS = """
 <style>
 /* ===========================================================================
-   Hero title block (centered Playfair Display + Inter caps subtitle)
-   The structure injected from gui/app.py is:
-     <div class="pemfc-hero">
-       <div class="title">PEMFC <span class="accent">Simulator</span></div>
-       <div class="rule"></div>
-       <div class="subtitle">…</div>
-     </div>
-   =========================================================================== */
-.pemfc-hero {
-    text-align: center;
-    margin: 0.4rem 0 1.1rem 0;
-    padding: 0;
-}
-.pemfc-hero .title {
-    font-family: "Playfair Display", "Cormorant Garamond", Georgia, serif !important;
-    font-size: 2.85rem !important;
-    font-weight: 700 !important;
-    color: #0f172a;
-    letter-spacing: -0.018em;
-    line-height: 1.05;
-    margin: 0;
-}
-.pemfc-hero .title .accent {
-    color: #1e3a5f;
-    font-style: italic;
-    font-weight: 600;
-}
-.pemfc-hero .rule {
-    width: 56px;
-    height: 2px;
-    background: #1e3a5f;
-    margin: 0.55rem auto 0.55rem auto;
-    border-radius: 2px;
-}
-.pemfc-hero .subtitle {
-    font-family: "Inter", -apple-system, "Segoe UI", Arial, sans-serif !important;
-    font-size: 0.75rem !important;
-    font-weight: 500;
-    color: #64748b;
-    letter-spacing: 0.22em;
-    text-transform: uppercase;
-}
-
-/* ===========================================================================
-   Design tokens
+   Design tokens — pure white page, cards lifted with border + subtle shadow.
    =========================================================================== */
 :root {
-    --bg-page:        #f4f6fa;     /* cool off-white page background  */
+    --bg-page:        #ffffff;     /* pure white page background      */
     --bg-card:        #ffffff;     /* white panels                    */
     --bg-input:       #ffffff;
-    --bg-input-soft:  #f8fafc;     /* slightly recessed inputs        */
+    --bg-input-soft:  #f8fafc;     /* very slightly recessed inputs   */
     --fg-strong:      #0f172a;     /* primary text (slate-900)        */
     --fg-body:        #1e293b;     /* body text (slate-800)           */
     --fg-mute:        #64748b;     /* captions / hints (slate-500)    */
@@ -99,8 +55,8 @@ _STREAMLIT_CSS = """
     --accent:         #1e3a5f;     /* deep navy primary accent        */
     --accent-hover:   #2c5282;     /* steel blue on hover             */
     --accent-tint:    #e6edf5;     /* very pale navy for selections   */
-    --shadow-sm:      0 1px 2px rgba(15, 23, 42, 0.06);
-    --shadow-md:      0 1px 3px rgba(15, 23, 42, 0.08),
+    --shadow-sm:      0 1px 2px rgba(15, 23, 42, 0.05);
+    --shadow-md:      0 1px 3px rgba(15, 23, 42, 0.07),
                       0 1px 2px rgba(15, 23, 42, 0.04);
     --radius-card:    8px;
     --radius-input:   5px;
@@ -114,10 +70,12 @@ _STREAMLIT_CSS = """
     background-color: var(--bg-page) !important;
 }
 [data-testid="stHeader"] {
-    background: linear-gradient(to bottom,
-        rgba(244, 246, 250, 0.96),
-        rgba(244, 246, 250, 0));
+    background: transparent !important;
     backdrop-filter: none !important;
+}
+/* Pull the top of the app upward now that the hero title is gone. */
+[data-testid="stAppViewContainer"] .main .block-container {
+    padding-top: 1.0rem !important;
 }
 
 html, body, [class*="css"] {

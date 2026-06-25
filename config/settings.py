@@ -69,7 +69,7 @@ nodes_postfix = ["agc"] + ["agdl_" + str(i+1) for i in range(parameters["n_gdl"]
 nodes_names_vp = ["C_v_agc"] + [f"C_v_agdl_{i+1}" for i in range(parameters["n_gdl"])] + ["C_v_acl"] + ["C_v_ccl"] + [f"C_v_cgdl_{i+1}" for i in range(parameters["n_gdl"])] + ["C_v_cgc"]
 nodes_names_H2 = ["C_H2_agc"] + [f"C_H2_agdl_{i+1}" for i in range(parameters["n_gdl"])] + ["C_H2_acl"] + [f"C_H2_mem_{i+1}" for i in range(parameters["n_mem"])]
 nodes_name_O2 = [f"C_O2_mem_{i+1}" for i in range(parameters["n_mem"])] + ["C_O2_ccl"] + [f"C_O2_cgdl_{i+1}" for i in range(parameters["n_gdl"])] + ["C_O2_cgc"]
-nodes_names_s = [f"s_agdl_{i+1}" for i in range(parameters["n_gdl"])] + [f"s_cgdl_{i+1}" for i in range(parameters["n_gdl"])]
+nodes_names_s = [f"s_agdl_{i+1}" for i in range(parameters["n_gdl"])] + ["s_acl", "s_ccl"] + [f"s_cgdl_{i+1}" for i in range(parameters["n_gdl"])]
 nodes_lambda = ["lambda_acl"] + [f"lambda_mem_{i+1}" for i in range(parameters["n_mem"])] + ["lambda_ccl"]
 nodes_T = ["Tagdl_" + str(i+1) for i in range(parameters["n_gdl"])] + ["Tacl"] + ["Tmem_" + str(i+1) for i in range(parameters["n_mem"])] + ["Tccl"] + ["Tcgdl_" + str(i+1) for i in range(parameters["n_gdl"])]
 

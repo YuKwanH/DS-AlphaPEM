@@ -39,8 +39,8 @@ def _ensure_state():
         op = deepcopy({k: v for k, v in _OP_DEFAULT.items() if k != "current_density"})
         st.session_state["op_inputs"] = op
     st.session_state.setdefault("model_variant", "Dual-scale")
-    st.session_state.setdefault("aux_system", True)
-    st.session_state.setdefault("profile_kind", "Constant")
+    st.session_state.setdefault("aux_system", False)
+    st.session_state.setdefault("profile_kind", "AST cycling")
     st.session_state.setdefault("profile_cfg", {})
     st.session_state.setdefault("t_start", 0.0)
     st.session_state.setdefault("t_end", 20.0)
@@ -85,7 +85,7 @@ def _trigger_run():
                 max_step=s["max_step"],
                 method=s["method"],
                 polar_sweep=polar_sweep,
-                aux_system=s.get("aux_system", True),
+                aux_system=s.get("aux_system", False),
             )
     except Exception as exc:
         st.session_state["last_result"] = {
@@ -139,21 +139,12 @@ def main():
     _style.apply_streamlit()
     _ensure_state()
 
-    # ---- Hero title: centered Playfair Display, italic navy accent on
-    #      "Simulator", uppercase tracked subtitle below.
+    # Load Inter for body UI (no hero title — removed for a cleaner header).
     st.markdown(
         '<link rel="preconnect" href="https://fonts.googleapis.com">'
         '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
         '<link href="https://fonts.googleapis.com/css2?'
-        'family=Playfair+Display:ital,wght@0,600;0,700;1,600;1,700'
-        '&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">'
-        '<div class="pemfc-hero">'
-        '  <div class="title">PEMFC <span class="accent">Simulator</span></div>'
-        '  <div class="rule"></div>'
-        '  <div class="subtitle">'
-        '    Proton Exchange Membrane Fuel Cell · 1D Dual-Scale Dynamic Model'
-        '  </div>'
-        '</div>',
+        'family=Inter:wght@400;500;600&display=swap" rel="stylesheet">',
         unsafe_allow_html=True,
     )
 
