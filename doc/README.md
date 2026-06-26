@@ -14,8 +14,7 @@ One short companion doc per Python source file. Layout mirrors the project tree.
 - [`data/export.md`](data/export.md) — load experimental Excel datasets (polarization, HFR, EIS, auxiliary).
 
 ## `model/`
-- [`model/dualscale.md`](model/dualscale.md) — dual-scale `PEMFC` class (macro electrochem coupled with Pt micro-kinetics).
-- [`model/dynamic.md`](model/dynamic.md) — legacy time-marched `PEMFC_dyn` class.
+- [`model/model.md`](model/model.md) — primary fuel-cell module: hosts `PEMFC` (1-D, no BoP), `PEMFC_dyn` (1-D + BoP), and `PEMFC_0D` (lumped).
 - [`model/static.md`](model/static.md) — algebraic steady-state `PEMFC_stat` class for polarization curves.
 - [`model/state_eq.md`](model/state_eq.md) — region-by-region ODE right-hand-side (`dxdt_*` functions).
 - [`model/kinetic_eq.md`](model/kinetic_eq.md) — voltage breakdown helpers (`fdrop`, `Rproton`, …).

@@ -19,7 +19,7 @@ def trace_nan(model, t_span, y0, method="BDF", max_step=None,
     model : object
         Must expose ``dxdt(t, x)`` and ``variable_names`` (list of state names).
         Any object satisfying that interface works — typically a
-        ``model.dualscale.PEMFC`` instance.
+        ``model.model.PEMFC`` instance.
     t_span, y0, method, max_step, **solve_ivp_kwargs :
         Forwarded to ``scipy.integrate.solve_ivp``.
     verbose : bool

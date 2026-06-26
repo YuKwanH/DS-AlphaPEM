@@ -1,6 +1,6 @@
-# `model/dualscale.py`
+# `model/model.py`
 
-**Purpose.** Primary fuel-cell model. Couples the macro-scale electrochemistry (gas/liquid transport, manifolds, voltage) with a Pt-particle micro-kinetics layer (`S_N`, `theta`, PRD evolution).
+**Purpose.** Primary fuel-cell model module. Hosts three variants — `PEMFC` (1-D, no BoP), `PEMFC_dyn` (1-D + balance-of-plant), and `PEMFC_0D` (lumped). All three couple the macro-scale electrochemistry with a Pt-particle micro-kinetics layer (`S_N`, `theta`, PRD evolution).
 
 ## Class `PEMFC`
 
@@ -27,7 +27,7 @@ Construction does the heavy bookkeeping:
 from scipy.integrate import solve_ivp
 from config.initialize import init_x, parameters, operating_inputs
 from config.settings import solver_variable_names, solver_flux_names
-from model.dualscale import PEMFC
+from model.model import PEMFC
 
 m = PEMFC(param=parameters, operating_inputs=operating_inputs,
           variable_names=solver_variable_names, flux_names=solver_flux_names)

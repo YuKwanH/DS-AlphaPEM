@@ -10,4 +10,4 @@
 
 ## Related
 
-- [`model/static.md`](static.md) and [`model/dualscale.md`](dualscale.md) call these helpers when computing `Ucell`, `eta_act`, `eta_conc`, `Rohm`.
+- [`model/static.md`](static.md) and [`model/model.md`](model.md) call these helpers when computing `Ucell`, `eta_act`, `eta_conc`, `Rohm`.

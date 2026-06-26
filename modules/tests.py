@@ -21,7 +21,7 @@ from scipy.integrate import solve_ivp
 from config.initialize import init_x, parameters as _DEFAULT_PARAMS
 from config.initialize import operating_inputs as _DEFAULT_OP_INPUTS
 from config.settings import solver_variable_names, solver_flux_names
-from model.dualscale import PEMFC
+from model.model import PEMFC
 from modules.signals import (
     generate_ast_load,
     generate_constant_load,

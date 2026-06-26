@@ -25,4 +25,4 @@ All functions follow the same shape: take pre-computed instantaneous values via 
 ## Related
 
 - [`model/inst_values.md`](inst_values.md) — produces the kwargs (concentrations, fluxes, source terms) consumed here.
-- [`model/dualscale.md`](dualscale.md) — orchestrator that calls every `dxdt_*` per RHS evaluation.
+- [`model/model.md`](model.md) — orchestrator that calls every `dxdt_*` per RHS evaluation.

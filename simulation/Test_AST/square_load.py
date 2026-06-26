@@ -49,7 +49,7 @@ if str(project_root) not in sys.path:
 
 from config.initialize import operating_inputs, parameters, init_x       # noqa: E402
 from config.settings import solver_variable_names, solver_flux_names     # noqa: E402
-from model.dualscale import PEMFC                                         # noqa: E402
+from model.model import PEMFC                                             # noqa: E402
 from model.inst_values import getECSA                                     # noqa: E402
 from modules.signals import generate_step_load                            # noqa: E402
 

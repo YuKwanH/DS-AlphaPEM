@@ -32,7 +32,7 @@ def render(state):
         key="opt_model_variant",
         help="Static = polarisation sweep. Dual-scale / Dynamic = transient. "
              "The auxiliary toggle picks the actual file at run time: "
-             "with-aux -> dynamic.py, without-aux -> dualscale.py.",
+             "with-aux -> PEMFC_dyn, without-aux -> PEMFC.",
     )
     aux_choice = aux_col.selectbox(
         "Auxiliary system",

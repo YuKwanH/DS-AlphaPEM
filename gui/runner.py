@@ -13,7 +13,7 @@ from scipy.integrate import solve_ivp
 from config.initialize import init_x, init_x_for
 from config.settings import solver_variable_names, solver_flux_names
 from model.coefficients import F, R, yO2_ext, Kshape, Psat, lambda_eq
-from model.dualscale import PEMFC, PEMFC_0D, PEMFC_dyn
+from model.model import PEMFC, PEMFC_0D, PEMFC_dyn
 from model.static import PEMFC_stat
 
 
@@ -53,7 +53,7 @@ def _solve_with_fallback(dxdt, t_span, y0, method, max_step):
 def _resolve_transient_model(model_variant, aux_system):
     """Pick the actual transient model class to run.
 
-    All three dual-scale variants live in :mod:`model.dualscale`:
+    All three dual-scale variants live in :mod:`model.model`:
       * ``PEMFC``      -- 1-D, WITHOUT balance-of-plant (no aux).
       * ``PEMFC_dyn``  -- 1-D, WITH compressor / BoP (with aux).
       * ``PEMFC_0D``   -- 0-D lumped (used as a comparison companion).
@@ -202,7 +202,7 @@ def _run_static(params, op_inputs, polar_sweep):
 # 0D benchmark companion runs
 # ===========================================================================
 # When the user ticks "Compare with 0D benchmark" in the GUI, we run the
-# 0D lumped-parameter model (``PEMFC_0D`` in model/dualscale.py) alongside
+# 0D lumped-parameter model (``PEMFC_0D`` in model/model.py) alongside
 # the main simulation so the results can be overlaid for comparison.
 #
 # Two modes:

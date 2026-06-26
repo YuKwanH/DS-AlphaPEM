@@ -100,7 +100,7 @@ def init_x(operating_inputs, parameters):
 
 
 # ---------------------------------------------------------------------------
-# Initial state for the 1-D dynamic model PEMFC_dyn (model/dynamic.py)
+# Initial state for the 1-D dynamic model PEMFC_dyn (model/model.py)
 # ---------------------------------------------------------------------------
 def init_x_dyn(operating_inputs, parameters):
     """Initial state vector for PEMFC_dyn (1-D model + balance-of-plant).
@@ -232,9 +232,9 @@ def init_x_for(model_variant, operating_inputs, parameters):
     if name in ('dualscale', 'pemfc', 'default'):
         return init_x(operating_inputs, parameters)
     if name in ('0d', 'zerod', 'pemfc0d', 'lumped'):
-        # Local import to avoid a top-level config -> model.dualscale dependency
+        # Local import to avoid a top-level config -> model.model dependency
         # at import time (config/initialize is imported very early on startup).
-        from model.dualscale import PEMFC_0D
+        from model.model import PEMFC_0D
         return PEMFC_0D.default_initial_state(parameters, operating_inputs)
     if name in ('dynamic', 'dyn', 'pemfcdyn', 'bop'):
         return init_x_dyn(operating_inputs, parameters)

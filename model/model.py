@@ -735,8 +735,8 @@ class PEMFC_0D:
 
 # ============================================================================
 # 1-D PEMFC with balance-of-plant (compressor, supply/exhaust manifolds,
-# humidifiers, back-pressure valves). Previously in model/dynamic.py;
-# consolidated here so all three dual-scale variants live in one module:
+# humidifiers, back-pressure valves).  All three dual-scale variants in
+# this module:
 #   * PEMFC      -- 1-D, no aux  (transient, without BoP)
 #   * PEMFC_0D   -- 0-D dual-scale (lumped electrochem)
 #   * PEMFC_dyn  -- 1-D + auxiliary system (full BoP)
