@@ -132,29 +132,43 @@ def _trigger_run():
             }
 
 
-def main():
-    st.set_page_config(page_title="PEMFC Simulator", layout="wide")
-    # CSS injection — must come AFTER set_page_config (which has to be the
-    # very first Streamlit call) but before any visible widgets are rendered.
-    _style.apply_streamlit()
-    _ensure_state()
+# Vertical-rhythm constants shared by both pages.
+SECTION_HEIGHT  = 820
+SAVE_HEIGHT     = 270
+GAP_PX          = 16   # vertical gap Streamlit inserts between containers
+RESULTS_HEIGHT  = SECTION_HEIGHT - SAVE_HEIGHT - GAP_PX  # = 534
 
-    # Load Inter for body UI (no hero title — removed for a cleaner header).
-    st.markdown(
-        '<link rel="preconnect" href="https://fonts.googleapis.com">'
-        '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
-        '<link href="https://fonts.googleapis.com/css2?'
-        'family=Inter:wght@400;500;600&display=swap" rel="stylesheet">',
-        unsafe_allow_html=True,
-    )
 
-    # Three columns. The result column stacks two cards (results on top,
-    # save/download below) so all three bottom edges share the same baseline.
-    SECTION_HEIGHT  = 820
-    SAVE_HEIGHT     = 270
-    GAP_PX          = 16   # vertical gap Streamlit inserts between containers
-    RESULTS_HEIGHT  = SECTION_HEIGHT - SAVE_HEIGHT - GAP_PX  # = 534
+def _render_nav_rail():
+    """Slim two-button page selector on the left side of the app.
 
+    Each button fills roughly half the viewport height; the active page is
+    drawn with `type="primary"` (navy fill, white text) and the inactive
+    one with the default outlined style.
+    """
+    page = st.session_state.get("page", "simulation")
+    if st.button(
+        "🔬\n\n**Simulation**",
+        key="nav_sim",
+        use_container_width=True,
+        type=("primary" if page == "simulation" else "secondary"),
+        help="Run a PEMFC simulation with the parameter / options panels.",
+    ):
+        st.session_state["page"] = "simulation"
+        st.rerun()
+    if st.button(
+        "🎯\n\n**Calibration**",
+        key="nav_cal",
+        use_container_width=True,
+        type=("primary" if page == "calibration" else "secondary"),
+        help="Calibrate model parameters against experimental data.",
+    ):
+        st.session_state["page"] = "calibration"
+        st.rerun()
+
+
+def _render_simulation_page():
+    """The original 3-column simulation layout: parameters · options · results."""
     col_p, col_o, col_r = st.columns([0.85, 1.0, 1.65], gap="medium")
     with col_p:
         with st.container(height=SECTION_HEIGHT, border=True):
@@ -167,6 +181,54 @@ def main():
             panel_results.render(st.session_state, on_run=_trigger_run)
         with st.container(height=SAVE_HEIGHT, border=True):
             panel_save.render(st.session_state)
+
+
+def _render_calibration_page():
+    """Placeholder for the calibration workflow."""
+    with st.container(height=SECTION_HEIGHT, border=True):
+        st.markdown("#### § Calibration")
+        st.caption(
+            "Parameter calibration against experimental data "
+            "(polarization, HFR, EIS). Work in progress."
+        )
+        st.info(
+            "Planned workflow:\n\n"
+            "1. Pick a **model variant** (Dual-scale / Dynamic / Static / 0D).\n"
+            "2. Load **experimental data** from `data/` (Excel polarization / HFR / EIS).\n"
+            "3. Choose which **parameters** to vary and their bounds.\n"
+            "4. Run an **Optuna search** and watch the residual converge live.\n"
+            "5. Inspect the best fit overlaid on the measurements."
+        )
+
+
+def main():
+    st.set_page_config(page_title="PEMFC Simulator", layout="wide")
+    # CSS injection — must come AFTER set_page_config (which has to be the
+    # very first Streamlit call) but before any visible widgets are rendered.
+    _style.apply_streamlit()
+    _ensure_state()
+    # Page routing: "simulation" (the original 3-column workflow) or
+    # "calibration" (the new placeholder). The nav rail toggles between them.
+    st.session_state.setdefault("page", "simulation")
+
+    # Load Inter for body UI (no hero title — removed for a cleaner header).
+    st.markdown(
+        '<link rel="preconnect" href="https://fonts.googleapis.com">'
+        '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
+        '<link href="https://fonts.googleapis.com/css2?'
+        'family=Inter:wght@400;500;600&display=swap" rel="stylesheet">',
+        unsafe_allow_html=True,
+    )
+
+    # Outermost split: slim left nav rail + main content area.
+    nav_col, main_col = st.columns([0.06, 0.94], gap="small")
+    with nav_col:
+        _render_nav_rail()
+    with main_col:
+        if st.session_state["page"] == "simulation":
+            _render_simulation_page()
+        else:
+            _render_calibration_page()
 
 
 if __name__ == "__main__":

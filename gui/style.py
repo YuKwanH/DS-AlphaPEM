@@ -293,6 +293,50 @@ label,
 }
 
 /* ===========================================================================
+   Left nav rail — two tall page-selector buttons (Simulation / Calibration)
+   ===========================================================================
+   Layout: a slim column whose two buttons each fill ~half the viewport
+   so the rail visually spans the screen. Emoji on top, label below — we
+   use flex-column inside the button to stack them vertically.
+   =========================================================================== */
+.st-key-nav_sim button,
+.st-key-nav_cal button {
+    height: calc((100vh - 110px) / 2) !important;
+    min-height: 280px !important;
+    width: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 0.55rem !important;
+    white-space: normal !important;
+    text-align: center !important;
+    font-size: 0.92rem !important;
+    line-height: 1.25 !important;
+    padding: 1.2rem 0.45rem !important;
+    border-radius: 10px !important;
+    box-shadow: var(--shadow-sm) !important;
+    transition: transform 0.10s ease, box-shadow 0.12s ease,
+                background 0.12s ease, border-color 0.12s ease !important;
+}
+/* The emoji line — Streamlit splits markdown bold into a separate <p>; the
+   first child of the button label container ends up being the icon line. */
+.st-key-nav_sim button p,
+.st-key-nav_cal button p {
+    margin: 0 !important;
+}
+.st-key-nav_sim button p:first-child,
+.st-key-nav_cal button p:first-child {
+    font-size: 1.85rem !important;
+    line-height: 1 !important;
+}
+.st-key-nav_sim button:hover,
+.st-key-nav_cal button:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md) !important;
+}
+
+/* ===========================================================================
    Expanders (parameter groups in Section 1)
    =========================================================================== */
 [data-testid="stExpander"], .stExpander {
