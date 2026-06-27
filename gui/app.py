@@ -28,6 +28,7 @@ from gui import parameters as panel_params
 from gui import options as panel_options
 from gui import results as panel_results
 from gui import save as panel_save
+from gui import calibration as panel_calibration
 from gui.runner import run as run_simulation
 from gui.runner import run_0d_companion
 
@@ -184,21 +185,8 @@ def _render_simulation_page():
 
 
 def _render_calibration_page():
-    """Placeholder for the calibration workflow."""
-    with st.container(height=SECTION_HEIGHT, border=True):
-        st.markdown("#### § Calibration")
-        st.caption(
-            "Parameter calibration against experimental data "
-            "(polarization, HFR, EIS). Work in progress."
-        )
-        st.info(
-            "Planned workflow:\n\n"
-            "1. Pick a **model variant** (Dual-scale / Dynamic / Static / 0D).\n"
-            "2. Load **experimental data** from `data/` (Excel polarization / HFR / EIS).\n"
-            "3. Choose which **parameters** to vary and their bounds.\n"
-            "4. Run an **Optuna search** and watch the residual converge live.\n"
-            "5. Inspect the best fit overlaid on the measurements."
-        )
+    """Three-column calibration workflow (data viewer · optimizer · result)."""
+    panel_calibration.render(st.session_state, section_height=SECTION_HEIGHT)
 
 
 def main():
