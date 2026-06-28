@@ -40,13 +40,19 @@ def _is_optuna_available():
 # ----------------------------------------------------------------------------
 DATASETS = ("Polarization", "HFR", "EIS")
 
-# Physical parameters worth varying in a calibration. Defaults and bounds
-# match the recipe used in the project's calibration notebooks
-# (`simulation/parameter calibration/.../*.ipynb`). Insertion order
-# matches the reference recipe so the multiselect lists the active set
-# first.
+# Physical parameters worth varying in a calibration. Two flavours are
+# supported:
+#
+#   CONTINUOUS — (label, low, high, log, unit)
+#   DISCRETE   — (label, None, None, False, unit, [c1, c2, ...])
+#
+# Discrete params (a non-empty ``choices`` 6th element) sample over a
+# fixed set of values; the bounds editor swaps the low/high pair for a
+# multiselect. Defaults and bounds match the recipe used in the
+# project's calibration notebooks
+# (`simulation/parameter calibration/.../*.ipynb`).
 CALIB_PARAMS = {
-    # name          (display label,                  low,    high,   log,   unit)
+    # name          (display label,                  low,    high,   log,   unit,  [choices])
     "OCV":          ("Open-circuit voltage",         0.90,   1.00,   False, "V"),
     "i0_c_ref":     ("Cathode exchange i0",          0.01,   15.0,   True,  "A/m²"),
     "kappa_c":      ("Cathode Tafel slope",          0.5,    3.0,    False, "-"),
@@ -55,6 +61,7 @@ CALIB_PARAMS = {
     "epsilon_cl":   ("Catalyst-layer porosity",      0.1,    0.5,    False, "-"),
     "Hcl":          ("Catalyst-layer thickness",     1e-5,   3e-5,   True,  "m"),
     "Hgdl":         ("GDL thickness",                2e-4,   4e-4,   True,  "m"),
+    "e":            ("Bruggeman exponent (discrete)", None,  None,   False, "-", [3, 4, 5]),
     # Below: alternative parameters from the same recipe; commented out
     # there but kept available here so users can opt in.
     "tau":          ("Tortuosity exponent",          1.0,    4.0,    False, "-"),
@@ -65,10 +72,25 @@ CALIB_PARAMS = {
     "a_switch":     ("Switch coverage a",            0.05,   0.5,    False, "-"),
 }
 
-# The first eight entries above are the recipe's *active* (uncommented)
+# The first nine entries above are the recipe's *active* (uncommented)
 # set — pre-selected by default in the multiselect.
 DEFAULT_PARAMS = ["OCV", "i0_c_ref", "kappa_c", "epsilon_mc",
-                  "epsilon_c", "epsilon_cl", "Hcl", "Hgdl"]
+                  "epsilon_c", "epsilon_cl", "Hcl", "Hgdl", "e"]
+
+
+def _is_discrete(name):
+    """True if the param sweeps a fixed list of values instead of a (low, high) range."""
+    spec = CALIB_PARAMS.get(name)
+    return spec is not None and len(spec) >= 6 and spec[5] is not None
+
+
+def _default_bounds(name):
+    """Initial bounds value for a parameter — list of choices for discrete,
+    ``(low, high)`` tuple for continuous."""
+    spec = CALIB_PARAMS[name]
+    if _is_discrete(name):
+        return list(spec[5])
+    return (spec[1], spec[2])
 
 OPTIMIZERS = ("TPE (Optuna)", "Genetic algorithm", "Grid search")
 AUX_CHOICES = ("With auxiliary (BoP)", "Without auxiliary")
@@ -133,7 +155,7 @@ def render(state, *, section_height=820):
         "optimizer":    OPTIMIZER_DEFAULT,
         "seed":         42,
         "params":       list(DEFAULT_PARAMS),
-        "bounds":       {k: (v[1], v[2]) for k, v in CALIB_PARAMS.items()},
+        "bounds":       {k: _default_bounds(k) for k in CALIB_PARAMS},
         "dwell_pola":   DWELL_POLA_S,
         "dwell_hfr":    DWELL_HFR_S,
     })
@@ -458,19 +480,42 @@ def _render_optimizer_panel(state):
     if cfg["params"]:
         with st.expander("Edit bounds", expanded=False):
             for k in cfg["params"]:
-                _, low_default, high_default, log_scale, unit = CALIB_PARAMS[k]
-                lo, hi = cfg["bounds"].get(k, (low_default, high_default))
-                bc1, bc2 = st.columns(2)
-                fmt = "%.3e" if log_scale else "%.4g"
-                lo_new = bc1.number_input(
-                    f"{k} low ({unit})", value=float(lo),
-                    format=fmt, key=f"calib_lo_{k}",
-                )
-                hi_new = bc2.number_input(
-                    f"{k} high ({unit})", value=float(hi),
-                    format=fmt, key=f"calib_hi_{k}",
-                )
-                cfg["bounds"][k] = (lo_new, hi_new)
+                spec = CALIB_PARAMS[k]
+                unit = spec[4]
+                if _is_discrete(k):
+                    # Discrete — multiselect over the allowed values.
+                    choices = list(spec[5])
+                    current = cfg["bounds"].get(k, choices)
+                    if not isinstance(current, list):
+                        current = list(choices)
+                    selected = st.multiselect(
+                        f"{k} candidates ({unit})",
+                        options=choices,
+                        default=[c for c in current if c in choices] or choices,
+                        key=f"calib_disc_{k}",
+                        help=f"{k} samples from this set (default = all "
+                             f"{len(choices)} values).",
+                    )
+                    # Don't let the user empty the set — fall back to all choices.
+                    cfg["bounds"][k] = selected if selected else list(choices)
+                else:
+                    # Continuous — (low, high) number inputs.
+                    _, low_default, high_default, log_scale, *_ = spec
+                    current = cfg["bounds"].get(k, (low_default, high_default))
+                    if not (isinstance(current, tuple) and len(current) == 2):
+                        current = (low_default, high_default)
+                    lo, hi = current
+                    bc1, bc2 = st.columns(2)
+                    fmt = "%.3e" if log_scale else "%.4g"
+                    lo_new = bc1.number_input(
+                        f"{k} low ({unit})", value=float(lo),
+                        format=fmt, key=f"calib_lo_{k}",
+                    )
+                    hi_new = bc2.number_input(
+                        f"{k} high ({unit})", value=float(hi),
+                        format=fmt, key=f"calib_hi_{k}",
+                    )
+                    cfg["bounds"][k] = (lo_new, hi_new)
 
     st.divider()
     if st.button(

@@ -242,6 +242,12 @@ def _is_log_param(name):
     return name in log_set
 
 
+def _is_categorical(bound):
+    """A bound is categorical when it's a list of candidate values; a
+    (low, high) tuple means continuous."""
+    return isinstance(bound, list)
+
+
 def _run_tpe(objective, params, bounds, n_trials, seed, on_progress=None):
     try:
         import optuna
@@ -259,8 +265,12 @@ def _run_tpe(objective, params, bounds, n_trials, seed, on_progress=None):
     def _opt(trial):
         po = {}
         for k in params:
-            lo, hi = bounds[k]
-            po[k] = trial.suggest_float(k, lo, hi, log=_is_log_param(k))
+            b = bounds[k]
+            if _is_categorical(b):
+                po[k] = trial.suggest_categorical(k, list(b))
+            else:
+                lo, hi = b
+                po[k] = trial.suggest_float(k, lo, hi, log=_is_log_param(k))
         loss = objective(po)
         history.append((len(history) + 1, loss))
         if on_progress is not None:
@@ -288,8 +298,19 @@ def _run_ga(objective, params, bounds, n_trials, seed, on_progress=None):
 
     history = []
 
+    # DE only accepts continuous bounds. For categorical params we use
+    # the (min, max) span of the choices and snap the sampled value to
+    # the nearest allowed value before evaluating — standard GA practice
+    # for ordinal discrete parameters.
+    def _snap(name, x):
+        b = bounds[name]
+        if _is_categorical(b):
+            choices = list(b)
+            return min(choices, key=lambda c: abs(c - float(x)))
+        return float(x)
+
     def _f(x):
-        po = {k: float(v) for k, v in zip(params, x)}
+        po = {k: _snap(k, v) for k, v in zip(params, x)}
         loss = float(objective(po))
         history.append((len(history) + 1, loss))
         if on_progress is not None:
@@ -300,13 +321,16 @@ def _run_ga(objective, params, bounds, n_trials, seed, on_progress=None):
     rng = np.random.default_rng(seed)
     popsize = max(5, min(15, n_trials // 5))
     maxiter = max(1, n_trials // popsize)
-    boundlist = [bounds[k] for k in params]
+    boundlist = [(min(bounds[k]), max(bounds[k])) if _is_categorical(bounds[k])
+                 else bounds[k]
+                 for k in params]
     result = differential_evolution(
         _f, boundlist, popsize=popsize, maxiter=maxiter, seed=int(seed),
         init="sobol", tol=1e-6, mutation=(0.5, 1.5), recombination=0.7,
         polish=False, updating="deferred",
     )
-    best_params = {k: float(v) for k, v in zip(params, result.x)}
+    # Re-snap the optimum so categoricals report a valid choice.
+    best_params = {k: _snap(k, v) for k, v in zip(params, result.x)}
     return {
         "best_params": best_params,
         "best_loss":   float(result.fun),
@@ -321,13 +345,18 @@ def _run_grid(objective, params, bounds, n_trials, seed, on_progress=None):
     k = len(params)
     n_per_axis = max(2, int(n_trials ** (1.0 / max(1, k))))
     # Build axes (linear for now; could log-space for known log params).
+    # Categorical params use their candidate list directly.
     axes = {}
     for name in params:
-        lo, hi = bounds[name]
-        if _is_log_param(name) and lo > 0:
-            axes[name] = np.geomspace(lo, hi, n_per_axis)
+        b = bounds[name]
+        if _is_categorical(b):
+            axes[name] = np.asarray(list(b))
         else:
-            axes[name] = np.linspace(lo, hi, n_per_axis)
+            lo, hi = b
+            if _is_log_param(name) and lo > 0:
+                axes[name] = np.geomspace(lo, hi, n_per_axis)
+            else:
+                axes[name] = np.linspace(lo, hi, n_per_axis)
     grid = list(product(*[axes[name] for name in params]))
     if len(grid) > n_trials:
         # Even subsample so we don't blow the budget.
@@ -380,7 +409,11 @@ def run_calibration(request, *, baseline_params, data, on_progress=None):
     """
     target     = request["target"]
     params     = list(request["params"])
-    bounds     = {k: tuple(request["bounds"][k]) for k in params}
+    # Preserve list-vs-tuple shape: list means categorical, tuple means
+    # continuous (low, high). Don't flatten everything to tuple.
+    def _coerce_bound(b):
+        return list(b) if isinstance(b, list) else tuple(b)
+    bounds     = {k: _coerce_bound(request["bounds"][k]) for k in params}
     optimizer  = request["optimizer"]
     n_trials   = int(request["n_trials"])
     seed       = int(request["seed"])
