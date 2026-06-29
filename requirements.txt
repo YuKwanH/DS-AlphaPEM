@@ -4,3 +4,4 @@ scipy
 pandas
 matplotlib
 openpyxl
+optuna>=3.0
