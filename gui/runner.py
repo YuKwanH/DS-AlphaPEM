@@ -169,10 +169,44 @@ def _run_static(params, op_inputs, polar_sweep):
     op_inputs.setdefault("Wout_a", op_inputs["Win_a"])
     op_inputs.setdefault("Wout_c", op_inputs["Win_c"])
 
+    # ---- Input validation (no silent overrides) ----------------------------
+    # The algebraic water balance in PEMFC_stat needs at least a trace of
+    # humidification — a perfectly dry anode/cathode boundary makes a_w go
+    # to zero and the closed-form lambda(a_w) expression diverges. Tell the
+    # user *exactly* which input is incompatible instead of silently
+    # bumping their value (the GUI rule is: never run a different setup
+    # than the one the user typed in).
+    phi_a = float(op_inputs.get("Phi_a_des", 0.0))
+    phi_c = float(op_inputs.get("Phi_c_des", 0.0))
+    if phi_a < 0.05 or phi_c < 0.05:
+        return None, {"i_A_m2": np.array([]), "Ucell_V": np.array([])}, {
+            "runtime_s": 0.0, "n_points": 0,
+            "success": False,
+            "message": (
+                f"Static (algebraic) solver requires Phi_a_des and Phi_c_des "
+                f"both ≥ 0.05 — currently Phi_a_des={phi_a:.3f}, "
+                f"Phi_c_des={phi_c:.3f}. Edit the Operating parameters in "
+                f"section §1 and re-run."
+            ),
+            "model_variant": "Static",
+            "kind": "polar",
+        }
+
+    # ---- Fix the missing module-level globals (code defect, not a UI lie).
+    # PEMFC_stat internally reads Pa_des / Pc_des from `model.static` module
+    # globals (see model/static.py — line `Pa_des, Pc_des` defaults at import).
+    # The runner never synced them, so any non-default pressure in the GUI
+    # was effectively ignored by the static solver. Sync them now so the
+    # GUI's pressure inputs are actually honored.
+    import model.static as _static_module
+    _static_module.Pa_des = op_inputs["Pa_des"]
+    _static_module.Pc_des = op_inputs["Pc_des"]
+
     model = PEMFC_stat(parameters=params, operating_inputs=op_inputs)
 
     i_grid = np.linspace(0.05e4, i_max_A_cm2 * 1e4, n_points)
     Ucell, i_keep = [], []
+    failures = 0
     t0 = time.perf_counter()
     for i in i_grid:
         try:
@@ -182,16 +216,24 @@ def _run_static(params, op_inputs, polar_sweep):
             if np.isfinite(v):
                 Ucell.append(float(v))
                 i_keep.append(float(i))
+            else:
+                failures += 1
         except Exception:
+            failures += 1
             continue
     runtime = time.perf_counter() - t0
 
     polar = {"i_A_m2": np.array(i_keep), "Ucell_V": np.array(Ucell)}
+    msg = ""
+    if not i_keep:
+        msg = "static solver failed at every i"
+    elif failures:
+        msg = f"{failures} of {n_points} points did not converge"
     status = {
         "runtime_s": runtime,
         "n_points": len(i_keep),
         "success": len(i_keep) > 0,
-        "message": "" if i_keep else "static solver failed at every i",
+        "message": msg,
         "model_variant": "Static",
         "kind": "polar",
     }

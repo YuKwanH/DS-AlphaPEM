@@ -30,15 +30,12 @@ from gui.calib_backend import run_calibration
 # Experimental dataset to fit against: "Polarization" or "HFR".
 TARGET = "Polarization"
 
-# Which model variant the calibration backend will simulate
-# ("Dual-scale", "Dynamic", or "Static"). Static is fastest because it is
-# algebraic (no time integration) and is what the backend currently uses
-# regardless of this label.
+# Model variant the calibration backend evaluates. Only "Static" is
+# currently supported — the steady-state algebraic PEMFC_stat solver is
+# what every trial actually runs. Transient-model calibration
+# (Dual-scale / Dynamic) is not yet implemented; the GUI / script
+# deliberately do not expose those options to avoid a lying control.
 MODEL_VARIANT = "Static"
-
-# Balance-of-plant equations: True simulates compressor/manifolds, False
-# freezes them at the design point. Ignored when MODEL_VARIANT == "Static".
-AUX_SYSTEM = False
 
 # Optimizer: "TPE (Optuna)", "Genetic algorithm", or "Grid search".
 OPTIMIZER = "TPE (Optuna)"
@@ -98,7 +95,6 @@ def _build_request():
     return {
         "target":     TARGET,
         "model":      MODEL_VARIANT,
-        "aux_system": AUX_SYSTEM,
         "optimizer":  OPTIMIZER,
         "n_trials":   N_TRIALS,
         "seed":       SEED,
@@ -117,7 +113,7 @@ def _print_header(req, data, conditions):
     print(" PEMFC simulator - raw-code parameter calibration")
     print("=" * 70)
     print(f"   Target         : {req['target']}")
-    print(f"   Model variant  : {req['model']}   (aux_system={req['aux_system']})")
+    print(f"   Model variant  : {req['model']}   (PEMFC_stat, algebraic steady-state)")
     print(f"   Optimizer      : {req['optimizer']}")
     print(f"   Trials / seed  : {req['n_trials']}  /  seed={req['seed']}")
     print(f"   Conditions     : {len(conditions)} (of {len(data)} available)")

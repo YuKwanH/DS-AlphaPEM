@@ -24,15 +24,30 @@ def render(state):
     _render_run_error(state)
 
     # --- Row 1: Model variant + Auxiliary system (selectboxes side-by-side)
+    # Only Dual-scale and Dynamic are wired end-to-end. The Static
+    # (algebraic) path in gui/runner.py::_run_static currently does NOT
+    # honor the GUI's stoichiometry-derived Win/Wout convention
+    # (PEMFC_stat expects different units), so picking Static would crash
+    # for any user-typed input. Excluded from the dropdown until that
+    # mismatch is reconciled — calibration users wanting steady-state
+    # polarization should use the Calibration page (which calls
+    # PEMFC_stat through the verified `_make_op_stat` recipe).
+    _RUNNABLE_VARIANTS = tuple(v for v in MODEL_VARIANTS if v != "Static")
     mv_col, aux_col = st.columns(2)
     state["model_variant"] = mv_col.selectbox(
         "Model variant",
-        options=MODEL_VARIANTS,
-        index=MODEL_VARIANTS.index(state.get("model_variant", "Dual-scale")),
+        options=_RUNNABLE_VARIANTS,
+        index=_RUNNABLE_VARIANTS.index(
+            state.get("model_variant", "Dual-scale")
+            if state.get("model_variant", "Dual-scale") in _RUNNABLE_VARIANTS
+            else "Dual-scale"
+        ),
         key="opt_model_variant",
-        help="Static = polarisation sweep. Dual-scale / Dynamic = transient. "
-             "The auxiliary toggle picks the actual file at run time: "
-             "with-aux -> PEMFC_dyn, without-aux -> PEMFC.",
+        help="Dual-scale / Dynamic = transient ODE integration. "
+             "The auxiliary toggle picks the actual class at run time: "
+             "with-aux -> PEMFC_dyn, without-aux -> PEMFC. "
+             "(Static polarization sweep is not yet exposed here; see the "
+             "Calibration page.)",
     )
     aux_choice = aux_col.selectbox(
         "Auxiliary system",

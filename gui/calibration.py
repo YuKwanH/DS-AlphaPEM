@@ -93,14 +93,22 @@ def _default_bounds(name):
     return (spec[1], spec[2])
 
 OPTIMIZERS = ("TPE (Optuna)", "Genetic algorithm", "Grid search")
-AUX_CHOICES = ("With auxiliary (BoP)", "Without auxiliary")
+# Auxiliary toggle deliberately removed — the calibration backend currently
+# only fits PEMFC_stat (algebraic steady-state solver), which has no BoP
+# concept. Exposing a With/Without selector would be a lie: changing it
+# would have no effect on the optimization.
+# AUX_CHOICES = ("With auxiliary (BoP)", "Without auxiliary")  # removed
 # TPE is the recommended default: sample-efficient for 2-6 continuous
 # parameters with log/linear scales, handles the kind of budget (~50
 # trials) that PEMFC calibration runs typically use, and it's the engine
 # already wired into the calibration scripts in `.claude/patch_hfr.py`.
 OPTIMIZER_DEFAULT = "TPE (Optuna)"
 
-MODEL_VARIANTS = ("Dual-scale", "Dynamic", "Static")
+# Only Static is exposed because that is what the backend actually solves.
+# Dual-scale and Dynamic calibration would require running PEMFC / PEMFC_dyn
+# transient-to-steady-state per evaluation (per-trial cost ~minutes instead
+# of ~1 s) — a real feature build, not a UI tweak.
+MODEL_VARIANTS = ("Static",)
 
 
 # ----------------------------------------------------------------------------
@@ -149,8 +157,7 @@ def render(state, *, section_height=820):
         "dataset":      "Polarization",
         "conditions":   [],
         "target":       "Polarization",
-        "model":        "Dual-scale",
-        "aux_system":   False,
+        "model":        "Static",      # only option the backend supports
         "n_trials":     50,
         "optimizer":    OPTIMIZER_DEFAULT,
         "seed":         42,
@@ -159,6 +166,11 @@ def render(state, *, section_height=820):
         "dwell_pola":   DWELL_POLA_S,
         "dwell_hfr":    DWELL_HFR_S,
     })
+    # Migrate any stale state from before the Static-only restriction so
+    # a returning user does not crash on `MODEL_VARIANTS.index(...)`.
+    if state["calib"].get("model") not in MODEL_VARIANTS:
+        state["calib"]["model"] = "Static"
+    state["calib"].pop("aux_system", None)  # selector was removed
 
     col_data, col_opt, col_res = st.columns([1.15, 0.85, 1.45], gap="medium")
     with col_data:
@@ -222,10 +234,16 @@ def _render_data_viewer(state):
     # staircase over the test-bench dwell convention; EIS uses the actual
     # measurement timestamps from the data file.
     st.divider()
-    st.markdown("**Simulation load profile**")
+    st.markdown("**Load profile preview** *(visualization only — does not change the loss)*")
+    st.caption(
+        "The static calibration objective samples the experimental I_LOAD "
+        "values directly; the dwell setting and staircase below are a visual "
+        "reference for the test-bench protocol, not solver inputs."
+    )
 
-    # Editable dwell for Polarization / HFR. EIS uses real timestamps so
-    # no input is shown there.
+    # Editable dwell for Polarization / HFR — **affects the preview plot
+    # only**. The static calibration objective samples the experimental
+    # I_LOAD values directly, so the dwell value does not change the loss.
     dwell = None
     if cfg["dataset"] == "Polarization":
         cfg["dwell_pola"] = float(st.number_input(
@@ -398,30 +416,21 @@ def _render_optimizer_panel(state):
         key="calib_target",
         help="Which experimental dataset the simulation is fitted against.",
     )
-    mc1, mc2 = st.columns(2)
-    cfg["model"] = mc1.selectbox(
+    cfg["model"] = st.selectbox(
         "Model variant",
         options=MODEL_VARIANTS,
-        index=MODEL_VARIANTS.index(cfg.get("model", "Dual-scale")),
+        index=MODEL_VARIANTS.index(cfg.get("model", "Static")),
         key="calib_model",
+        disabled=(len(MODEL_VARIANTS) == 1),
+        help=("Calibration currently fits only the steady-state algebraic "
+              "model (PEMFC_stat). Transient-model calibration (Dual-scale / "
+              "Dynamic) is not yet implemented — see the calibration backend "
+              "module docstring for details."),
     )
-    # Auxiliary toggle matches the simulation page (with-aux → PEMFC_dyn,
-    # without-aux → PEMFC). Greyed out for Static — algebraic solver has
-    # no BoP concept.
-    aux_disabled = (cfg["model"] == "Static")
-    aux_index = 0 if cfg.get("aux_system", False) else 1
-    aux_choice = mc2.selectbox(
-        "Auxiliary system",
-        options=AUX_CHOICES,
-        index=aux_index,
-        key="calib_aux_system",
-        disabled=aux_disabled,
-        help=("With: include the compressor / balance-of-plant (PEMFC_dyn).\n"
-              "Without: skip BoP — the cell sees an ideal supply (PEMFC).\n"
-              "Static is algebraic and has no BoP concept, so this is "
-              "disabled when Static is selected."),
+    st.caption(
+        "ℹ️ The optimizer always evaluates the **static** algebraic solver. "
+        "Auxiliary-system / transient-model calibration is not yet wired."
     )
-    cfg["aux_system"] = (aux_choice == AUX_CHOICES[0]) and not aux_disabled
 
     st.markdown("**Optimizer settings**")
     # TPE is the recommended default — see the OPTIMIZERS docstring above.
@@ -529,8 +538,7 @@ def _render_optimizer_panel(state):
     ):
         state["calib_request"] = {
             "target":     cfg["target"],
-            "model":      cfg["model"],
-            "aux_system": cfg["aux_system"],
+            "model":      cfg["model"],     # always "Static" today; backend reads PEMFC_stat
             "n_trials":   cfg["n_trials"],
             "optimizer":  cfg["optimizer"],
             "seed":       cfg["seed"],
