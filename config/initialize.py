@@ -14,12 +14,12 @@ operating_inputs = {'current_density': lambda x: 0.1e4, 'Tfc': 353.15,
                                     'Sa': 1.2, 'Sc': 2.,
                                     'Imin_aux': 10}
 
-undetermined_physical_parameters = {'epsilon_gdl': 0.6, "epsilon_cl": 0.35,
-                                                                        'epsilon_mc': 0.399,'epsilon_c': 0.189, 
-                                                                        'e': 4, 'kappa_co': 37.2, 'Re': 2.2e-7, 'tau': 1.01, 
-                                                                        'i0_c_ref': 2.16, 'kappa_c': 2.9, 'C_scl': 1e8, 
-                                                                        'a_slim': 0.4, 'b_slim': 0.5, 'a_switch': 0.5,
-                                                                        "Hcl": 1e-5, "Hgdl": 2.e-4, "OCV": 0.95}
+undetermined_physical_parameters = {'epsilon_gdl': 0.5304, "epsilon_cl": 0.1308,
+                                                                'epsilon_mc': 0.4653, "epsilon_c": 0.2431, 
+                                                                'e': 3, 'kappa_co': 37.2, 'Re': 2.2e-7, 'tau': 1.12, 
+                                                                'i0_c_ref': 0.026, 'kappa_c': 2.5952, 'C_scl': 1e8, 
+                                                                'a_slim': 0.2172, 'b_slim': 0.1431, 'a_switch': 0.5,
+                                                                "Hcl": 1e-5, "Hgdl": 4.e-4, "OCV": 0.98}
 
 computing_parameters = {'max_step': 0.1, 'n_gdl': 10,'n_mem':10,'n_group_pt':50,
                                             't_purge': (2.4, 15), 'type_fuel_cell': "LEV-200", 'type_control': "Phi_des", 'type_purge': "constant_purge",
