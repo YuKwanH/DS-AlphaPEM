@@ -63,7 +63,15 @@ DEFAULT_VISIBLE = ["Operating", "GC (gas channel)", "GDL", "CL (catalyst layer)"
 
 
 def render(state):
-    st.markdown("#### § 1 Parameters")
+    from config import user_defaults as _user_defaults
+    title_col, save_col = st.columns([3, 1])
+    title_col.markdown("#### § 1 Parameters")
+    if save_col.button("💾 Save as default", key="param_save_default",
+                       use_container_width=True,
+                       help="Persist the current parameter values so they "
+                            "become the defaults next time the GUI opens."):
+        _user_defaults.save_parameters(state["params"], state["op_inputs"])
+        st.toast("Parameters saved as default.", icon="💾")
 
     visible = st.multiselect(
         "Show region",

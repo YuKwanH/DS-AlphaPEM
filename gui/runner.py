@@ -33,21 +33,47 @@ def _build_dyn_initial_state(params, op_inputs):
 
 
 def _solve_with_fallback(dxdt, t_span, y0, method, max_step):
-    """Run solve_ivp; on transient-NaN failure (newer scipy is strict),
-    fall back to LSODA which tolerates the same intermediate NaNs that
-    older scipy silently survives. Returns ``(sol, fallback_used)``.
+    """Run ``solve_ivp`` with the automatic BDF -> LSODA solver chain.
+
+    Tries ``method`` first (BDF by default). If that attempt fails for
+    ANY reason -- Python exception raised, ``sol.success == False``
+    (LSODA's ``Unexpected istate`` message, BDF's Jacobian NaN, etc.),
+    zero steps taken, or a non-finite final state -- the routine
+    automatically retries the integration with LSODA. If both methods
+    fail, returns the LSODA result (with ``success=False``) so the
+    caller can surface the solver message to the user.
+
+    Returns ``(sol, fallback_used)``. ``fallback_used = True`` means
+    LSODA finished the integration after the primary method could not.
     """
-    try:
-        sol = solve_ivp(dxdt, t_span, y0, method=method, max_step=max_step)
-        return sol, False
-    except ValueError as exc:
-        msg = str(exc).lower()
-        if "inf" not in msg and "nan" not in msg:
-            raise
-        if method.upper() == "LSODA":
-            raise
-    sol = solve_ivp(dxdt, t_span, y0, method="LSODA", max_step=max_step)
-    return sol, True
+    def _attempt(m):
+        try:
+            sol = solve_ivp(dxdt, t_span, y0, method=m, max_step=max_step)
+        except Exception:
+            return None
+        return sol
+
+    def _is_valid(sol):
+        return (sol is not None
+                and bool(sol.success)
+                and sol.y.shape[1] > 0
+                and bool(np.all(np.isfinite(sol.y[:, -1]))))
+
+    primary = (method or "BDF").upper()
+    sol_primary = _attempt(primary)
+    if _is_valid(sol_primary):
+        return sol_primary, False
+
+    # Primary was already LSODA -- no second-order solver in the chain.
+    if primary == "LSODA":
+        return sol_primary, False
+
+    sol_lsoda = _attempt("LSODA")
+    if _is_valid(sol_lsoda):
+        return sol_lsoda, True
+
+    # Both failed: prefer the LSODA sol (has the more informative message).
+    return sol_lsoda if sol_lsoda is not None else sol_primary, True
 
 
 def _resolve_transient_model(model_variant, aux_system):
@@ -132,8 +158,8 @@ def run(params, op_inputs, model_variant, profile_func, t_span,
     if route_note:
         msg = (route_note + ". " + msg).strip(". ").strip() + ("." if msg else "")
     if fallback:
-        msg = (f"BDF failed on a transient NaN; auto-retried with LSODA. "
-               f"Solver message: {msg}").strip()
+        msg = (f"{method} could not finish the integration; auto-switched "
+               f"to LSODA. Solver message: {msg}").strip()
     aux_label = "aux: on" if aux_system else "aux: off"
     label = model_variant
     if model_variant != requested_variant:

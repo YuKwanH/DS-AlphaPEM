@@ -14,12 +14,20 @@ from gui import profiles
 from gui.runner import MODEL_VARIANTS
 
 
-SOLVERS = ("BDF", "Radau", "LSODA", "RK45")
+SOLVERS = ("BDF", "LSODA")   # BDF first, LSODA is the automatic fallback
 AUX_CHOICES = ("With auxiliary (BoP)", "Without auxiliary")
 
 
 def render(state):
-    st.markdown("#### § 2 Options")
+    from config import user_defaults as _user_defaults
+    title_col, save_col = st.columns([3, 1])
+    title_col.markdown("#### § 2 Options")
+    if save_col.button("💾 Save as default", key="opt_save_default",
+                       use_container_width=True,
+                       help="Persist the current model variant, test profile, "
+                            "time span, and solver settings as defaults."):
+        _user_defaults.save_options(state)
+        st.toast("Options saved as default.", icon="💾")
 
     _render_run_error(state)
 

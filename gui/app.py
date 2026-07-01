@@ -31,22 +31,33 @@ from gui import save as panel_save
 from gui import calibration as panel_calibration
 from gui.runner import run as run_simulation
 from gui.runner import run_0d_companion
+from config import user_defaults as _user_defaults
 
 
 def _ensure_state():
+    # Load user-saved overrides (from config/user_defaults.json) exactly once
+    # per fresh session; the "Save as default" buttons in each panel write to
+    # that file so tweaks persist across GUI restarts.
+    _overrides = _user_defaults.load()
+
     if "params" not in st.session_state:
-        st.session_state["params"] = deepcopy(_PARAMS_DEFAULT)
+        p = deepcopy(_PARAMS_DEFAULT)
+        p.update(_overrides.get("parameters", {}))
+        st.session_state["params"] = p
     if "op_inputs" not in st.session_state:
         op = deepcopy({k: v for k, v in _OP_DEFAULT.items() if k != "current_density"})
+        op.update(_overrides.get("op_inputs", {}))
         st.session_state["op_inputs"] = op
-    st.session_state.setdefault("model_variant", "Dual-scale")
-    st.session_state.setdefault("aux_system", False)
-    st.session_state.setdefault("profile_kind", "AST cycling")
-    st.session_state.setdefault("profile_cfg", {})
-    st.session_state.setdefault("t_start", 0.0)
-    st.session_state.setdefault("t_end", 20.0)
-    st.session_state.setdefault("max_step", 0.1)
-    st.session_state.setdefault("method", "BDF")
+
+    _opts = _overrides.get("options", {})
+    st.session_state.setdefault("model_variant", _opts.get("model_variant", "Dual-scale"))
+    st.session_state.setdefault("aux_system",    _opts.get("aux_system",    False))
+    st.session_state.setdefault("profile_kind",  _opts.get("profile_kind",  "AST cycling"))
+    st.session_state.setdefault("profile_cfg",   _opts.get("profile_cfg",   {}))
+    st.session_state.setdefault("t_start",       _opts.get("t_start",       0.0))
+    st.session_state.setdefault("t_end",         _opts.get("t_end",         20.0))
+    st.session_state.setdefault("max_step",      _opts.get("max_step",      0.1))
+    st.session_state.setdefault("method",        _opts.get("method",        "BDF"))
     st.session_state.setdefault("visible_groups", panel_params.DEFAULT_VISIBLE)
     st.session_state.setdefault("last_result", None)
     st.session_state.setdefault("running", False)
