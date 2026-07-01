@@ -180,6 +180,22 @@ def _status_strip(status):
     st.caption(" · ".join(parts))
     if not status["success"] and status.get("message"):
         st.warning(status["message"])
+    # Prominent notice when the simulation runner auto-switched the ODE
+    # method. Per the honesty rule ("silent switching is not allowed on
+    # calibration; on simulation it must be user-visible"), we surface this
+    # as an st.warning banner — not just as a suffix on the variant label.
+    if status.get("fallback_used"):
+        requested = status.get("method_requested", "requested")
+        st.warning(
+            f"⚠ **Solver auto-switched from `{requested}` → `LSODA`.**  "
+            f"`{requested}` hit a transient NaN mid-integration; the runner "
+            f"re-ran the ODE with LSODA (which tolerates the same intermediate "
+            f"NaNs that older SciPy silently survived). The result above is from "
+            f"LSODA, not `{requested}`. If you need a strict single-solver run, "
+            f"pick a different method or use the calibration path (which never "
+            f"switches).",
+            icon="🔀",
+        )
 
 
 # ---------------------------------------------------------------------------

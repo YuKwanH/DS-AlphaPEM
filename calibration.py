@@ -30,12 +30,26 @@ from gui.calib_backend import run_calibration
 # Experimental dataset to fit against: "Polarization" or "HFR".
 TARGET = "Polarization"
 
-# Model variant the calibration backend evaluates. Only "Static" is
-# currently supported — the steady-state algebraic PEMFC_stat solver is
-# what every trial actually runs. Transient-model calibration
-# (Dual-scale / Dynamic) is not yet implemented; the GUI / script
-# deliberately do not expose those options to avoid a lying control.
-MODEL_VARIANT = "Static"
+# Model variant the calibration backend evaluates:
+#   * "Static"     -> PEMFC_stat (algebraic, ~50 ms/point — recommended default)
+#   * "Dual-scale" -> PEMFC, transient-to-steady at each measurement current
+#                     (aux=off; or auto-promoted to PEMFC_dyn if AUX_SYSTEM=True)
+#   * "Dynamic"    -> PEMFC_dyn (full BoP); demoted to PEMFC if AUX_SYSTEM=False
+# Transient modes are 50-200x slower per trial than Static — set N_TRIALS
+# small (~10-20) and use a short CONDITIONS list when picking them.
+MODEL_VARIANT = "Dynamic"
+
+# Balance-of-plant equations (used only when MODEL_VARIANT != "Static"):
+#   True  -> transient PEMFC_dyn (compressor / manifolds integrated)
+#   False -> transient PEMFC (ideal fixed supply)
+# The routing matches the simulation page exactly.
+AUX_SYSTEM = False
+
+# PDE solver passed to `scipy.integrate.solve_ivp` for transient
+# calibration ("BDF", "Radau", "LSODA", "RK45"). The backend does NOT
+# silently switch to a different solver mid-run — a trial that fails
+# with this solver stays failed. Ignored for MODEL_VARIANT="Static".
+METHOD = "BDF"
 
 # Optimizer: "TPE (Optuna)", "Genetic algorithm", or "Grid search".
 OPTIMIZER = "TPE (Optuna)"
@@ -95,6 +109,8 @@ def _build_request():
     return {
         "target":     TARGET,
         "model":      MODEL_VARIANT,
+        "aux_system": AUX_SYSTEM,
+        "method":     METHOD,
         "optimizer":  OPTIMIZER,
         "n_trials":   N_TRIALS,
         "seed":       SEED,
@@ -113,7 +129,13 @@ def _print_header(req, data, conditions):
     print(" PEMFC simulator - raw-code parameter calibration")
     print("=" * 70)
     print(f"   Target         : {req['target']}")
-    print(f"   Model variant  : {req['model']}   (PEMFC_stat, algebraic steady-state)")
+    if req["model"] == "Static":
+        resolved = "PEMFC_stat (algebraic, ~50 ms/point)"
+    else:
+        from gui.calib_backend import resolve_transient_model
+        cls = resolve_transient_model(req["model"], req["aux_system"])
+        resolved = f"{cls} (transient settle, aux_system={req['aux_system']})"
+    print(f"   Model variant  : {req['model']}   -> {resolved}")
     print(f"   Optimizer      : {req['optimizer']}")
     print(f"   Trials / seed  : {req['n_trials']}  /  seed={req['seed']}")
     print(f"   Conditions     : {len(conditions)} (of {len(data)} available)")

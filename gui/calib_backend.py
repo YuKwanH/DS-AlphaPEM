@@ -1,16 +1,30 @@
 """Backend optimizers for the calibration GUI.
 
-Three optimizer drivers (TPE / Genetic / Grid) and a small objective
-library that fits the static PEMFC model against experimental
-Polarization and HFR data.
+Three optimizer drivers (TPE / Genetic / Grid) and an objective library
+that fits one of three PEMFC models against experimental Polarization
+or HFR data.
 
-Calibration model
------------------
-The fitting runs against ``PEMFC_stat`` (algebraic, no transient) for
-speed — every objective evaluation is sub-second per condition. The
-condition key encodes (T_C, P_dPa, RHC_pct); we recover the operating
-inputs the static module needs (Phi_a/c, Pa/c, Tfc, Win/Wout) using the
-recipe from `.claude/patch_hfr.py` (LEV-200 commercial stack).
+Calibration models
+------------------
+Selected via ``request["model"]`` + ``request["aux_system"]``, matching
+the simulation page's routing exactly:
+
+* ``Static``   -> ``PEMFC_stat`` (algebraic; ~50 ms / point — recommended).
+* ``Dual-scale`` + aux=off -> ``PEMFC``     (transient-to-steady).
+* ``Dual-scale`` + aux=on  -> ``PEMFC_dyn`` (auto-promote; matches sim).
+* ``Dynamic``    + aux=on  -> ``PEMFC_dyn``.
+* ``Dynamic``    + aux=off -> ``PEMFC``     (auto-demote; matches sim).
+
+Transient evaluation runs ``solve_ivp`` at constant current for
+``SETTLE_S_PEMFC`` / ``SETTLE_S_PEMFC_DYN`` seconds and takes the tail
+Ucell value as the steady-state prediction. Per-trial cost on the
+default mesh is roughly ~2–4 min for ``PEMFC`` and ~4–8 min for
+``PEMFC_dyn`` — Static stays the practical default for full sweeps.
+
+The condition key encodes (T_C, P_dPa, RHC_pct); for Static we recover
+operating inputs via the ``_make_op_stat`` recipe (Phi_a = Phi_c = RHC,
+fixed Win/Wout), for transient we set Phi_a = 0 (dry anode, matching the
+experimental protocol) and let the integrator handle flows.
 
 Each objective returns the *sum of squared residuals* between simulated
 and measured points across the selected conditions, summed over the
@@ -52,6 +66,43 @@ import numpy as np
 
 from model.static import PEMFC_stat
 import model.static as static_module
+from model.model  import PEMFC, PEMFC_dyn
+from config.settings   import solver_variable_names, solver_flux_names
+from config.initialize import init_x, init_x_for
+from scipy.integrate   import solve_ivp
+
+
+# Transient-mode settle times — how long the integrator runs at constant
+# current before the tail value is treated as the steady-state prediction.
+# PEMFC (no BoP) settles in a few seconds; PEMFC_dyn needs longer because
+# of the compressor / manifold dynamics.
+SETTLE_S_PEMFC      = 10.0
+SETTLE_S_PEMFC_DYN  = 20.0
+
+# A trial is rejected (failure-loss sentinel) the moment *any* of these
+# conditions is detected at *any* measurement point of *any* condition:
+#   1. The model raises an exception                       -> trial fails.
+#   2. ``sol.success == False`` (BDF gave up, NaN, etc.)   -> trial fails.
+#   3. ``sol.t[-1]`` did not reach ``t_span[1]`` within the
+#      relative tolerance below                            -> trial fails.
+#   4. The recovered Ucell / R_ohm component is non-finite -> trial fails.
+# This is intentionally strict: the optimizer never gets partial credit
+# for parameter sets that only converge on a subset of the sweep.
+# Closely-matching (within 0.1% of t_end) is accepted to absorb stiff-
+# solver overshoot at the boundary; an exact match is not required.
+FINAL_TIME_TOL_FRAC = 1e-3
+
+
+# Mirrors the simulation-page routing in gui/runner.py::_resolve_transient_model.
+# The auxiliary toggle (not the variant name) really selects the file:
+#   Dual-scale + with-aux -> PEMFC_dyn  (PEMFC has no BoP code)
+#   Dynamic    + no-aux   -> PEMFC      (PEMFC_dyn needs BoP)
+def resolve_transient_model(model_variant, aux_system):
+    if aux_system and model_variant == "Dual-scale":
+        return "PEMFC_dyn"
+    if (not aux_system) and model_variant == "Dynamic":
+        return "PEMFC"
+    return "PEMFC_dyn" if model_variant == "Dynamic" else "PEMFC"
 
 
 # ---------------------------------------------------------------------------
@@ -156,6 +207,151 @@ def _predict_hfr(params, cond_key, i_meas_A):
     return out
 
 
+def _make_op_transient(cond):
+    """Build operating_inputs for a transient run at a given experimental condition.
+
+    Anode is fed dry hydrogen (Phi_a_des = 0) to match the test-bench
+    protocol; cathode RH and both pressures come from the condition key.
+    Sa / Sc are the design-point stoichiometries (the model uses them to
+    derive supply flows internally).
+    """
+    return {
+        "Tfc":       cond["Tfc_K"],
+        "Phi_a_des": 0.0,
+        "Phi_c_des": cond["RHC_frac"],
+        "Pa_des":    cond["P_Pa"],
+        "Pc_des":    cond["P_Pa"],
+        "Sa":        1.2,
+        "Sc":        2.0,
+        "Imin_aux":  10,
+    }
+
+
+def _predict_polarization_transient(params, cond_key, i_meas_A, *, model_kind,
+                                     method="BDF"):
+    """Per measured current, integrate the transient model at constant load and
+    return the tail Ucell. ``model_kind`` is one of "PEMFC" / "PEMFC_dyn"; the
+    ODE ``method`` is passed straight to ``scipy.integrate.solve_ivp`` and
+    is NEVER auto-switched by this function (see the strict-fail policy).
+    """
+    cond  = parse_condition_key(cond_key)
+    op0   = _make_op_transient(cond)
+    Aact  = params.get("Aact", 31e-4)
+    settle_s = SETTLE_S_PEMFC if model_kind == "PEMFC" else SETTLE_S_PEMFC_DYN
+
+    out = np.full(len(i_meas_A), np.nan, dtype=float)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        for k, I in enumerate(i_meas_A):
+            i_density = float(I) / Aact
+            op = dict(op0)
+            op["current_density"] = (lambda t, _i=i_density: _i)
+            t_span = (0.0, settle_s)
+            try:
+                if model_kind == "PEMFC":
+                    model = PEMFC(param=params, operating_inputs=op,
+                                  variable_names=solver_variable_names,
+                                  flux_names=solver_flux_names)
+                    y0 = init_x(op, params)
+                else:
+                    p_aux = dict(params); p_aux["aux_system"] = True
+                    y0 = init_x_for("dynamic", op, p_aux)
+                    model = PEMFC_dyn(parameters=p_aux, operating_inputs=op,
+                                      initial_variable_values=y0,
+                                      time_interval=t_span)
+                sol = solve_ivp(model.dxdt, t_span, y0, method=method, max_step=0.5)
+                # Reject if the solver gave up.
+                if not sol.success:
+                    continue
+                # Reject if the final time did not (closely) reach t_end.
+                tol = max(FINAL_TIME_TOL_FRAC * t_span[1], 1e-6)
+                if abs(float(sol.t[-1]) - t_span[1]) > tol:
+                    continue
+                # Reject if any state in the recovered trajectory is non-finite.
+                if not np.isfinite(sol.y).all():
+                    continue
+                model._recovery(sol)
+                # PEMFC stores Ucell in echem_traj; PEMFC_dyn may use
+                # echem_traj OR ec_kinetics OR variables depending on the
+                # _recovery path — pick whichever yields a finite tail.
+                ucell = None
+                for src in (getattr(model, "echem_traj", {}),
+                            getattr(model, "ec_kinetics", {}),
+                            getattr(model, "variables", {})):
+                    if src and "Ucell" in src and hasattr(src["Ucell"], "__len__"):
+                        candidate = float(np.asarray(src["Ucell"])[-1])
+                        if math.isfinite(candidate):
+                            ucell = candidate; break
+                if ucell is not None:
+                    out[k] = ucell
+            except Exception:
+                continue
+    return out
+
+
+def _predict_hfr_transient(params, cond_key, i_meas_A, *, model_kind,
+                            method="BDF"):
+    """Per measured current, integrate the transient model at constant load and
+    return the tail Rmem + Rccl + Racl as a proxy for HFR (the same sum the
+    static model returns as ``Rohm``). The ``method`` is passed straight to
+    ``scipy.integrate.solve_ivp`` and is never auto-switched."""
+    cond  = parse_condition_key(cond_key)
+    op0   = _make_op_transient(cond)
+    Aact  = params.get("Aact", 31e-4)
+    settle_s = SETTLE_S_PEMFC if model_kind == "PEMFC" else SETTLE_S_PEMFC_DYN
+
+    out = np.full(len(i_meas_A), np.nan, dtype=float)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        for k, I in enumerate(i_meas_A):
+            i_density = float(I) / Aact
+            op = dict(op0)
+            op["current_density"] = (lambda t, _i=i_density: _i)
+            t_span = (0.0, settle_s)
+            try:
+                if model_kind == "PEMFC":
+                    model = PEMFC(param=params, operating_inputs=op,
+                                  variable_names=solver_variable_names,
+                                  flux_names=solver_flux_names)
+                    y0 = init_x(op, params)
+                else:
+                    p_aux = dict(params); p_aux["aux_system"] = True
+                    y0 = init_x_for("dynamic", op, p_aux)
+                    model = PEMFC_dyn(parameters=p_aux, operating_inputs=op,
+                                      initial_variable_values=y0,
+                                      time_interval=t_span)
+                sol = solve_ivp(model.dxdt, t_span, y0, method=method, max_step=0.5)
+                # Reject if the solver gave up.
+                if not sol.success:
+                    continue
+                # Reject if the final time did not (closely) reach t_end.
+                tol = max(FINAL_TIME_TOL_FRAC * t_span[1], 1e-6)
+                if abs(float(sol.t[-1]) - t_span[1]) > tol:
+                    continue
+                # Reject if any state in the recovered trajectory is non-finite.
+                if not np.isfinite(sol.y).all():
+                    continue
+                model._recovery(sol)
+                ec = getattr(model, "echem_traj", {}) or {}
+                # Sum the resistance components that contribute to the HFR
+                # measurement (membrane + both catalyst layers).
+                r_total = 0.0; ok = True
+                for k_ in ("Rmem", "Rccl", "Racl"):
+                    if k_ in ec and hasattr(ec[k_], "__len__"):
+                        v = float(np.asarray(ec[k_])[-1])
+                        if math.isfinite(v):
+                            r_total += v
+                        else:
+                            ok = False; break
+                    else:
+                        ok = False; break
+                if ok:
+                    out[k] = r_total
+            except Exception:
+                continue
+    return out
+
+
 def _experimental_polarization(data, cond_key, n_cell):
     df = data[cond_key].dropna(subset=["I_LOAD", "VFC"]).sort_values("I_LOAD")
     return (df["I_LOAD"].to_numpy(dtype=float),
@@ -188,22 +384,42 @@ FAILURE_LOSS = 1e6
 
 
 def make_objective(target, baseline_params, data, conditions, *,
-                   n_cell=N_CELL_DEFAULT):
+                   n_cell=N_CELL_DEFAULT,
+                   model_variant="Static", aux_system=False,
+                   method="BDF"):
     """Build an objective ``f(param_dict) -> loss``.
 
     Only the keys in ``param_dict`` override the baseline; every other
     parameter stays at its default. ``data`` is the dict returned by
     ``data.export.export_experiment_data``.
+
+    ``model_variant`` selects which PEMFC variant is evaluated per trial:
+    ``"Static"`` -> ``PEMFC_stat`` (fast algebraic); ``"Dual-scale"`` or
+    ``"Dynamic"`` -> transient integration via ``PEMFC`` / ``PEMFC_dyn``
+    (the ``aux_system`` flag picks between them, with the same
+    auto-routing the simulation page uses).
     """
     target = str(target).lower()
-    if target.startswith("polar"):
-        predict = _predict_polarization
-        getexp  = lambda k: _experimental_polarization(data, k, n_cell)
-    elif target.startswith("hfr"):
-        predict = _predict_hfr
-        getexp  = lambda k: _experimental_hfr(data, k)
-    else:
+    is_polar = target.startswith("polar")
+    is_hfr   = target.startswith("hfr")
+    if not (is_polar or is_hfr):
         raise ValueError(f"target {target!r} not supported (use 'Polarization' or 'HFR')")
+
+    if model_variant == "Static":
+        predict = _predict_polarization if is_polar else _predict_hfr
+    else:
+        model_kind = resolve_transient_model(model_variant, aux_system)
+        if is_polar:
+            predict = lambda params, cond_key, i: _predict_polarization_transient(
+                params, cond_key, i, model_kind=model_kind, method=method)
+        else:
+            predict = lambda params, cond_key, i: _predict_hfr_transient(
+                params, cond_key, i, model_kind=model_kind, method=method)
+
+    if is_polar:
+        getexp = lambda k: _experimental_polarization(data, k, n_cell)
+    else:
+        getexp = lambda k: _experimental_hfr(data, k)
 
     # Cache experimental arrays so we only pay the I/O once.
     exp_cache = {k: getexp(k) for k in conditions}
@@ -212,6 +428,12 @@ def make_objective(target, baseline_params, data, conditions, *,
         p = deepcopy(baseline_params)
         for k, v in param_overrides.items():
             p[k] = v
+        # Strict-fail policy: any NaN prediction (from a solver failure,
+        # final-time mismatch, or non-finite recovered state — see the
+        # ``FINAL_TIME_TOL_FRAC`` block at the top of this module) means
+        # this parameter set is unfit. Return ``FAILURE_LOSS`` so the
+        # optimizer marks the trial as bad and moves on, instead of
+        # silently averaging over the points that happened to converge.
         loss = 0.0
         n = 0
         for cond_key in conditions:
@@ -418,6 +640,9 @@ def run_calibration(request, *, baseline_params, data, on_progress=None):
     n_trials   = int(request["n_trials"])
     seed       = int(request["seed"])
     conditions = list(request.get("conditions") or [])
+    model_variant = request.get("model", "Static")
+    aux_system    = bool(request.get("aux_system", False))
+    method        = str(request.get("method", "BDF"))
 
     if not conditions:
         # Fall back to every available condition.
@@ -426,7 +651,9 @@ def run_calibration(request, *, baseline_params, data, on_progress=None):
         raise ValueError("Calibration request has no parameters to fit.")
 
     objective, exp_cache, predict = make_objective(
-        target, baseline_params, data, conditions
+        target, baseline_params, data, conditions,
+        model_variant=model_variant, aux_system=aux_system,
+        method=method,
     )
 
     driver = _DRIVERS.get(optimizer)
@@ -453,6 +680,9 @@ def run_calibration(request, *, baseline_params, data, on_progress=None):
             "i_meas": i_meas, "y_meas": y_meas, "y_pred": y_pred,
         }
 
+    # Resolve what the backend actually ran (for the UI status strip).
+    resolved_class = ("PEMFC_stat" if model_variant == "Static"
+                      else resolve_transient_model(model_variant, aux_system))
     return {
         "best_params":   res["best_params"],
         "best_loss":     res["best_loss"],
@@ -461,6 +691,10 @@ def run_calibration(request, *, baseline_params, data, on_progress=None):
         "elapsed_s":     elapsed,
         "optimizer":     optimizer,
         "target":        target,
+        "model_variant": model_variant,
+        "aux_system":    aux_system,
+        "method":        method,
+        "resolved_class": resolved_class,
         "n_evals":       res["n_evals"],
         "message":       res["message"],
         "conditions":    conditions,

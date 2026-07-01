@@ -93,22 +93,24 @@ def _default_bounds(name):
     return (spec[1], spec[2])
 
 OPTIMIZERS = ("TPE (Optuna)", "Genetic algorithm", "Grid search")
-# Auxiliary toggle deliberately removed — the calibration backend currently
-# only fits PEMFC_stat (algebraic steady-state solver), which has no BoP
-# concept. Exposing a With/Without selector would be a lie: changing it
-# would have no effect on the optimization.
-# AUX_CHOICES = ("With auxiliary (BoP)", "Without auxiliary")  # removed
+AUX_CHOICES = ("With auxiliary (BoP)", "Without auxiliary")
+# ODE integrator choices for transient calibration. Mirrors the set the
+# Simulation page exposes so the user calibrates with the same solver
+# they will later simulate with. The backend does NOT fall back to a
+# different solver if the chosen one hits a NaN — a failed trial stays
+# failed (per the strict-fail policy in ``calib_backend.make_objective``).
+PDE_SOLVERS = ("BDF", "Radau", "LSODA", "RK45")
 # TPE is the recommended default: sample-efficient for 2-6 continuous
 # parameters with log/linear scales, handles the kind of budget (~50
 # trials) that PEMFC calibration runs typically use, and it's the engine
 # already wired into the calibration scripts in `.claude/patch_hfr.py`.
 OPTIMIZER_DEFAULT = "TPE (Optuna)"
 
-# Only Static is exposed because that is what the backend actually solves.
-# Dual-scale and Dynamic calibration would require running PEMFC / PEMFC_dyn
-# transient-to-steady-state per evaluation (per-trial cost ~minutes instead
-# of ~1 s) — a real feature build, not a UI tweak.
-MODEL_VARIANTS = ("Static",)
+# All three variants are wired end-to-end in gui/calib_backend.py.
+# Static is fastest (~50 ms / point, algebraic); Dual-scale and Dynamic
+# run a transient settle at every measurement current and are honest about
+# the cost in the optimizer panel (caption + per-trial estimate).
+MODEL_VARIANTS = ("Static", "Dual-scale", "Dynamic")
 
 
 # ----------------------------------------------------------------------------
@@ -157,7 +159,9 @@ def render(state, *, section_height=820):
         "dataset":      "Polarization",
         "conditions":   [],
         "target":       "Polarization",
-        "model":        "Static",      # only option the backend supports
+        "model":        "Static",       # fastest default; recommended for full sweeps
+        "aux_system":   False,
+        "method":       "BDF",          # PDE solver — locked-in during a run
         "n_trials":     50,
         "optimizer":    OPTIMIZER_DEFAULT,
         "seed":         42,
@@ -166,11 +170,10 @@ def render(state, *, section_height=820):
         "dwell_pola":   DWELL_POLA_S,
         "dwell_hfr":    DWELL_HFR_S,
     })
-    # Migrate any stale state from before the Static-only restriction so
-    # a returning user does not crash on `MODEL_VARIANTS.index(...)`.
+    # Migrate any stale state from earlier sessions so a returning user
+    # never crashes on `MODEL_VARIANTS.index(...)`.
     if state["calib"].get("model") not in MODEL_VARIANTS:
         state["calib"]["model"] = "Static"
-    state["calib"].pop("aux_system", None)  # selector was removed
 
     col_data, col_opt, col_res = st.columns([1.15, 0.85, 1.45], gap="medium")
     with col_data:
@@ -416,21 +419,79 @@ def _render_optimizer_panel(state):
         key="calib_target",
         help="Which experimental dataset the simulation is fitted against.",
     )
-    cfg["model"] = st.selectbox(
+    mc1, mc2 = st.columns(2)
+    cfg["model"] = mc1.selectbox(
         "Model variant",
         options=MODEL_VARIANTS,
         index=MODEL_VARIANTS.index(cfg.get("model", "Static")),
         key="calib_model",
-        disabled=(len(MODEL_VARIANTS) == 1),
-        help=("Calibration currently fits only the steady-state algebraic "
-              "model (PEMFC_stat). Transient-model calibration (Dual-scale / "
-              "Dynamic) is not yet implemented — see the calibration backend "
-              "module docstring for details."),
+        help=("Static = PEMFC_stat algebraic solver (~50 ms / point, "
+              "recommended).\n"
+              "Dual-scale / Dynamic = transient PEMFC / PEMFC_dyn settled "
+              "to steady state at every measurement current "
+              "(~seconds per point — see the per-trial estimate below)."),
     )
-    st.caption(
-        "ℹ️ The optimizer always evaluates the **static** algebraic solver. "
-        "Auxiliary-system / transient-model calibration is not yet wired."
+    aux_disabled = (cfg["model"] == "Static")
+    aux_index = 0 if cfg.get("aux_system", False) else 1
+    aux_choice = mc2.selectbox(
+        "Auxiliary system",
+        options=AUX_CHOICES,
+        index=aux_index,
+        key="calib_aux_system",
+        disabled=aux_disabled,
+        help=("With: include the compressor / balance-of-plant (PEMFC_dyn).\n"
+              "Without: skip BoP — the cell sees an ideal supply (PEMFC).\n"
+              "Static is algebraic and has no BoP concept, so this is "
+              "disabled when Static is selected."),
     )
+    cfg["aux_system"] = (aux_choice == AUX_CHOICES[0]) and not aux_disabled
+
+    # PDE solver — only meaningful for transient calibration (Static is
+    # algebraic and has no integrator). Locked-in for the whole run.
+    solver_disabled = (cfg["model"] == "Static")
+    cfg["method"] = st.selectbox(
+        "PDE solver",
+        options=PDE_SOLVERS,
+        index=PDE_SOLVERS.index(cfg.get("method", "BDF")),
+        key="calib_method",
+        disabled=solver_disabled,
+        help=("ODE integrator passed to `scipy.integrate.solve_ivp`. "
+              "The chosen solver is used for **every** trial in the "
+              "calibration — the backend never silently falls back to a "
+              "different one, so a trial that fails with this solver stays "
+              "failed. Disabled for Static (algebraic, no integrator)."),
+    )
+
+    # Honest cost estimate so the user is not surprised by a multi-hour run.
+    n_conds  = max(1, len(cfg.get("conditions") or []))
+    n_pts_est = 8  # ~ 7-8 polarization points per condition
+    if cfg["model"] == "Static":
+        per_trial_s = 0.05 * n_pts_est * n_conds
+    else:
+        # Resolve transient class to set the right settle time.
+        kind = calib_backend.resolve_transient_model(cfg["model"], cfg["aux_system"])
+        settle = (calib_backend.SETTLE_S_PEMFC if kind == "PEMFC"
+                  else calib_backend.SETTLE_S_PEMFC_DYN)
+        # Wall-time per integration is roughly the settle time at default mesh.
+        per_trial_s = settle * n_pts_est * n_conds
+    total_s = per_trial_s * max(1, int(cfg.get("n_trials", 50)))
+    if cfg["model"] == "Static":
+        st.caption(
+            f"ℹ️ Static evaluates `PEMFC_stat` (algebraic). "
+            f"Estimated wall time: ~{per_trial_s:.1f} s/trial, "
+            f"~{total_s:.0f} s total."
+        )
+    else:
+        kind = calib_backend.resolve_transient_model(cfg["model"], cfg["aux_system"])
+        st.warning(
+            f"Transient calibration: each trial integrates **{kind}** for "
+            f"{n_pts_est} currents × {n_conds} condition(s). "
+            f"Estimated wall time: ~{per_trial_s/60:.1f} min/trial, "
+            f"~{total_s/60:.0f} min ({total_s/3600:.1f} h) total. "
+            f"Consider reducing **Trials** or the number of conditions, or "
+            f"use Static for full sweeps and Transient for a final refinement.",
+            icon="⏱️",
+        )
 
     st.markdown("**Optimizer settings**")
     # TPE is the recommended default — see the OPTIMIZERS docstring above.
@@ -538,7 +599,9 @@ def _render_optimizer_panel(state):
     ):
         state["calib_request"] = {
             "target":     cfg["target"],
-            "model":      cfg["model"],     # always "Static" today; backend reads PEMFC_stat
+            "model":      cfg["model"],
+            "aux_system": cfg["aux_system"],
+            "method":     cfg["method"],
             "n_trials":   cfg["n_trials"],
             "optimizer":  cfg["optimizer"],
             "seed":       cfg["seed"],
@@ -629,11 +692,62 @@ def _render_results_panel(state):
         return
 
     # ---- Header strip ----------------------------------------------------
+    model_label = res.get("resolved_class") or res.get("model_variant", "?")
+    aux_tag = " (aux on)" if res.get("aux_system") else ""
+    solver_tag = ("" if res.get("model_variant") == "Static"
+                  else f"  ·  solver: **{res.get('method', 'BDF')}**")
     st.caption(
         f"optimizer: **{res['optimizer']}**  ·  target: **{res['target']}**  ·  "
+        f"model: **{model_label}{aux_tag}**{solver_tag}  ·  "
         f"evals: **{res['n_evals']}**  ·  elapsed: **{res['elapsed_s']:.1f} s**  ·  "
         f"best loss: **{res['best_loss']:.4g}**"
     )
+
+    # ---- Set-as-default button -----------------------------------------------
+    # Copies the best-fit parameter values into the simulation page's
+    # `state["params"]` dict so the next Run on the Simulation page uses
+    # them directly. The button is disabled if the trial did not produce
+    # a usable result (loss saturated at FAILURE_LOSS).
+    disabled = res["best_loss"] >= 1e6 * 0.9   # near the sentinel
+    bc1, bc2 = st.columns([2, 1])
+    with bc1:
+        st.caption(
+            "💡 Push the calibrated values into the Simulation page — "
+            "the next Run there will use them as defaults."
+        )
+    with bc2:
+        if st.button(
+            "💾 Set as simulation defaults",
+            key="calib_set_as_default_button",
+            type="primary",
+            use_container_width=True,
+            disabled=disabled,
+            help=("Copy every entry in `best_params` into "
+                  "`st.session_state[\"params\"]`, which is what the "
+                  "Simulation page reads. Disabled when the calibration "
+                  "did not produce a usable result."
+                  if not disabled else
+                  "Disabled: the best trial failed (loss at FAILURE_LOSS)."),
+        ):
+            # Ensure the sim-page params dict exists, then merge in the
+            # calibrated values.  We update in place so the Simulation
+            # page picks up the changes on its next rerun.
+            sim_params = state.setdefault("params", {})
+            updated = {}
+            for k, v in res["best_params"].items():
+                if k in sim_params or k in CALIB_PARAMS:
+                    sim_params[k] = v
+                    updated[k] = v
+            state["params"] = sim_params
+            st.success(
+                f"Set {len(updated)} parameter{'s' if len(updated) != 1 else ''} "
+                f"as simulation defaults: "
+                f"{', '.join(sorted(updated.keys()))}."
+            )
+            st.toast(
+                f"Updated {len(updated)} simulation parameters.",
+                icon="✅",
+            )
 
     # ---- Convergence curve ----------------------------------------------
     st.markdown("**Convergence**")
@@ -656,12 +770,26 @@ def _render_results_panel(state):
         st.pyplot(fig, clear_figure=True)
 
     # ---- Best parameter table -------------------------------------------
+    # Bounds can be either a (low, high) tuple (continuous params) or a
+    # list of allowed values (discrete params like `e: [3, 4, 5]`). Handle
+    # both so a discrete entry doesn't crash the unpack.
     st.markdown("**Best parameters**")
     bounds = (req or {}).get("bounds", {})
     rows = []
     for p, v in res["best_params"].items():
-        lo, hi = bounds.get(p, (None, None))
-        rows.append({"parameter": p, "low": lo, "high": hi, "best": v})
+        b = bounds.get(p)
+        if isinstance(b, (list,)):  # discrete
+            lo_disp = min(b) if b else None
+            hi_disp = max(b) if b else None
+            search = f"{{{', '.join(str(c) for c in b)}}}"
+        elif isinstance(b, tuple) and len(b) == 2:  # continuous
+            lo_disp, hi_disp = b
+            search = f"[{lo_disp:g}, {hi_disp:g}]" if all(
+                isinstance(x, (int, float)) for x in b) else f"{b}"
+        else:
+            lo_disp = hi_disp = None
+            search = "—"
+        rows.append({"parameter": p, "search range": search, "best": v})
     if rows:
         st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
     else:

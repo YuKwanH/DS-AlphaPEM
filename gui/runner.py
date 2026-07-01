@@ -148,6 +148,12 @@ def run(params, op_inputs, model_variant, profile_func, t_span,
                           + (" → LSODA fallback" if fallback else "")),
         "kind": "transient",
         "aux_system": bool(aux_system),
+        # Dedicated flag so the results panel can surface a prominent
+        # notice when the auto-switch fired. The calibration path never
+        # sets this — it uses solve_ivp directly with the chosen method.
+        "fallback_used": bool(fallback),
+        "method_requested": method,
+        "method_actual":    "LSODA" if fallback else method,
     }
     return model, sol, status
 
