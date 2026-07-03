@@ -293,6 +293,134 @@ label,
 }
 
 /* ===========================================================================
+   Inline "x-axis (s)" label in the Simulation header — vertically centred
+   so it sits on the same baseline as the Run / Hold buttons and the
+   number-input to its right (label height ~38 px, matches button/input).
+   =========================================================================== */
+.xaxis-inline-label {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    height: 38px !important;
+    line-height: 1 !important;
+    padding-right: 0.35rem !important;
+    font-size: 0.82rem !important;
+    color: var(--fg-mute) !important;
+    white-space: nowrap !important;
+}
+
+/* ===========================================================================
+   Compact "Save" pill (top-right of § 1 Parameters and § 2 Options)
+   ===========================================================================
+   Deliberately distinct from the panel outline so it reads as an
+   *action* rather than another chunk of card chrome. Accent-tinted
+   fill, rounded pill shape, no box shadow.
+   =========================================================================== */
+/* The st-key wrapper element itself — right-align the pill inside its
+   column so it sits neatly against the card's right edge instead of
+   drifting to a random position. */
+.st-key-param_save_default,
+.st-key-opt_save_default {
+    display: flex !important;
+    justify-content: flex-end !important;
+    align-items: center !important;
+    width: 100% !important;
+}
+/* The button itself — an inline pill sized to its content with generous
+   padding, guaranteed not to clip the label. */
+.st-key-param_save_default button,
+.st-key-opt_save_default button {
+    background-color: var(--accent-tint) !important;
+    color: var(--accent) !important;
+    border: 1px solid var(--accent) !important;
+    border-radius: 999px !important;
+    box-shadow: none !important;
+
+    /* Size to content, never smaller than the label. `width: auto` beats
+       Streamlit's default `width: 100%` on non-container-width buttons. */
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: auto !important;
+    min-width: max-content !important;
+    max-width: 100% !important;
+    min-height: 0 !important;
+    height: auto !important;
+    padding: 0.25rem 1.1rem !important;
+
+    /* Typography */
+    font-size: 0.72rem !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.03em !important;
+    line-height: 1.1 !important;
+    text-align: center !important;
+    white-space: nowrap !important;
+    overflow: visible !important;
+
+    transition: background 0.12s ease, color 0.12s ease,
+                transform 0.10s ease !important;
+}
+/* Streamlit wraps the label in a <p> inside the button — override the
+   default text-align and force the inner text to centre within the pill. */
+.st-key-param_save_default button p,
+.st-key-opt_save_default button p,
+.st-key-param_save_default button div[data-testid="stMarkdownContainer"],
+.st-key-opt_save_default button div[data-testid="stMarkdownContainer"] {
+    margin: 0 !important;
+    padding: 0 !important;
+    text-align: center !important;
+    width: auto !important;
+    font-size: inherit !important;
+    line-height: inherit !important;
+}
+.st-key-param_save_default button:hover,
+.st-key-opt_save_default button:hover {
+    background-color: var(--accent) !important;
+    color: #ffffff !important;
+    border-color: var(--accent) !important;
+    transform: translateY(-1px);
+}
+.st-key-param_save_default button:active,
+.st-key-opt_save_default button:active {
+    transform: translateY(0);
+    background-color: var(--accent-hover) !important;
+    color: #ffffff !important;
+}
+
+/* ===========================================================================
+   Improved visual hierarchy — differentiate what today all reads as
+   "1px slate-300 outline on a white surface":
+
+   1. Panel cards (§ 1 Parameters, § 2 Options, Simulation, Save & Download)
+      keep the strongest weight — slate-300 outline + shadow-md.
+   2. Expander groups inside a panel (Operating, GC, GDL, CL, MEM inside
+      § 1) get a slimmer slate-200 outline, no shadow, and a small
+      accent-tint left-border stripe so nested content clearly reads as
+      *inside* the parent card rather than another peer panel.
+   3. Number / text inputs keep the crisp slate-300 outline (unchanged).
+   4. All non-primary buttons pick up a subtle ambient shadow so they
+      lift off the card surface even when their border colour matches
+      the card outline.
+   =========================================================================== */
+[data-testid="stExpander"],
+.stExpander {
+    border: 1px solid var(--border-soft) !important;
+    border-left: 3px solid var(--accent-tint) !important;
+    box-shadow: none !important;
+    background-color: #fafcff !important;
+    border-radius: 6px !important;
+}
+[data-testid="stExpander"]:hover,
+.stExpander:hover {
+    border-left-color: var(--accent) !important;
+}
+.stButton > button:not([kind="primary"]),
+.stDownloadButton > button:not([kind="primary"]) {
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06),
+                0 1px 3px rgba(15, 23, 42, 0.04) !important;
+}
+
+/* ===========================================================================
    Left nav rail — two tall page-selector buttons (Simulation / Calibration)
    ===========================================================================
    Layout: a slim column whose two buttons each fill ~half the viewport
@@ -337,14 +465,9 @@ label,
 }
 
 /* ===========================================================================
-   Expanders (parameter groups in Section 1)
+   Expanders — summary text only (border/background handled earlier under
+   "Improved visual hierarchy" so nested groups get the accent-tint stripe).
    =========================================================================== */
-[data-testid="stExpander"], .stExpander {
-    background-color: var(--bg-input-soft) !important;
-    border: 1px solid var(--border-soft) !important;
-    border-radius: var(--radius-input) !important;
-    box-shadow: none !important;
-}
 [data-testid="stExpander"] summary,
 .stExpander summary {
     color: var(--fg-strong) !important;

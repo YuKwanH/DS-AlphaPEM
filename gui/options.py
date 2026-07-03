@@ -20,12 +20,13 @@ AUX_CHOICES = ("With auxiliary (BoP)", "Without auxiliary")
 
 def render(state):
     from config import user_defaults as _user_defaults
-    title_col, save_col = st.columns([3, 1])
+    # Compact "Save" pill — same style as § 1 Parameters.
+    title_col, save_col = st.columns([4, 1], gap="small")
     title_col.markdown("#### § 2 Options")
-    if save_col.button("💾 Save as default", key="opt_save_default",
-                       use_container_width=True,
-                       help="Persist the current model variant, test profile, "
-                            "time span, and solver settings as defaults."):
+    if save_col.button("Save", key="opt_save_default",
+                       help="Save the current model variant, test profile, "
+                            "time span, and solver settings as defaults. "
+                            "They will be pre-loaded next time the GUI opens."):
         _user_defaults.save_options(state)
         st.toast("Options saved as default.", icon="💾")
 

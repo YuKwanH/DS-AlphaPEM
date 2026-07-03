@@ -24,27 +24,33 @@ PARAM_GROUPS = {
         ("p",  "Hgc",        "Channel height",         "m",      "%.4g"),
         ("p",  "Wgc",        "Channel width",          "m",      "%.4g"),
         ("p",  "Lgc",        "Channel length",         "m",      "%.4g"),
-        ("p",  "Aact",       "Active area",            "m^2",    "%.4g"),
     ],
     "GDL": [
         ("p",  "Hgdl",        "GDL thickness",         "m",      "%.4g"),
         ("p",  "epsilon_gdl", "GDL porosity",          "-",      "%.3f"),
         ("p",  "tau",         "Tortuosity exponent",   "-",      "%.3f"),
+        ("p",  "e",           "Bruggeman exponent",    "-",      "%d"),
     ],
     "CL (catalyst layer)": [
+        # Electrochemistry (grouped together at the top so cathode-reaction
+        # tuning knobs sit next to each other).
+        ("p",  "OCV",         "Open-circuit voltage",  "V",      "%.4f"),
+        ("p",  "i0_c_ref",    "Cathode i0 ref",        "A/m^2",  "%.4g"),
+        ("p",  "kappa_c",     "O2 reaction order",     "-",      "%.3f"),
+        ("p",  "C_scl",       "CL capacitance",        "F/m^2",  "%.4g"),
+        # Geometry & porosity (Aact is the CL's active area — same face
+        # area for anode and cathode CL, so it lives here rather than in
+        # the gas channel section it used to be in).
+        ("p",  "Aact",        "Active area",           "m^2",    "%.4g"),
         ("p",  "Hcl",         "CL thickness",          "m",      "%.4g"),
         ("p",  "epsilon_cl",  "CL porosity",           "-",      "%.3f"),
         ("p",  "epsilon_c",   "CL ionomer fraction",   "-",      "%.3f"),
         ("p",  "epsilon_mc",  "Micro-scale porosity",  "-",      "%.3f"),
-        ("p",  "i0_c_ref",    "Cathode i0 ref",        "A/m^2",  "%.4g"),
-        ("p",  "kappa_c",     "O2 reaction order",     "-",      "%.3f"),
-        ("p",  "C_scl",       "CL capacitance",        "F/m^2",  "%.4g"),
     ],
     "MEM (membrane)": [
         ("p",  "Hmem",        "Membrane thickness",    "m",      "%.4g"),
         ("p",  "kappa_co",    "Conductivity constant", "-",      "%.3f"),
         ("p",  "Re",          "Electronic resistance", "Ohm",    "%.4g"),
-        ("p",  "e",           "Exchange constant",     "-",      "%.3f"),
     ],
     "Saturation transitions": [
         ("p",  "a_slim",      "a_slim",                "-",      "%.3f"),
@@ -64,12 +70,16 @@ DEFAULT_VISIBLE = ["Operating", "GC (gas channel)", "GDL", "CL (catalyst layer)"
 
 def render(state):
     from config import user_defaults as _user_defaults
-    title_col, save_col = st.columns([3, 1])
+    # Compact "Save" pill in the top-right of the section header.
+    # Column ratio 4:1 gives the pill ~80 px, and `use_container_width`
+    # is left False so the pill sizes to its content (see the
+    # `.st-key-param_save_default` block in gui/style.py).
+    title_col, save_col = st.columns([4, 1], gap="small")
     title_col.markdown("#### § 1 Parameters")
-    if save_col.button("💾 Save as default", key="param_save_default",
-                       use_container_width=True,
-                       help="Persist the current parameter values so they "
-                            "become the defaults next time the GUI opens."):
+    if save_col.button("Save", key="param_save_default",
+                       help="Save the current parameter values as the "
+                            "default. They will be pre-loaded next time "
+                            "the GUI opens."):
         _user_defaults.save_parameters(state["params"], state["op_inputs"])
         st.toast("Parameters saved as default.", icon="💾")
 

@@ -160,7 +160,7 @@ def _render_nav_rail():
     """
     page = st.session_state.get("page", "simulation")
     if st.button(
-        "🔬\n\n**Simulation**",
+        "⚡\n\n**Simulation**",
         key="nav_sim",
         use_container_width=True,
         type=("primary" if page == "simulation" else "secondary"),
@@ -169,7 +169,7 @@ def _render_nav_rail():
         st.session_state["page"] = "simulation"
         st.rerun()
     if st.button(
-        "🎯\n\n**Calibration**",
+        "📈\n\n**Calibration**",
         key="nav_cal",
         use_container_width=True,
         type=("primary" if page == "calibration" else "secondary"),
