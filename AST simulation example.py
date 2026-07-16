@@ -121,10 +121,10 @@ AST duration
 Set `N_CYCLES` in the "1. AST protocol" block below (or pass --cycles, which wins).
 Total AST time = N_CYCLES * CYCLE_PERIOD.
 
-A real DOE catalyst AST is ~15 000 cycles. That is far too slow to run all four
-models here (the 1-D ones would integrate ~10^5 s of stiff ODEs, ~37 h), so the
-default is 30 cycles -- enough to show the trends and the divergence between the
-models. Degradation is close to linear this early, so the ranking is unchanged.
+A real DOE catalyst AST is ~15 000 cycles, which costs ~15 h of wall clock for all
+four models (measured: the two 1-D models need ~1.5 s per cycle each; the micro and
+0-D models are 20x cheaper). Short runs are fine for comparing models: degradation
+is close to linear early on, so the ranking is unchanged.
 """
 
 import argparse
@@ -267,12 +267,16 @@ def with_progress(dxdt, t_end, label):
 # =========================================================================== #
 # ---- How long the AST runs. THIS is the knob to change the test duration. -----
 # Total AST time = N_CYCLES * CYCLE_PERIOD seconds.
-#   N_CYCLES =     30  ->     180 s  (~1 min wall clock)   default, shows the trends
-#   N_CYCLES =    500  ->   3 000 s  (~20 min)             clear separation
-#   N_CYCLES = 15 000  -> 90 000 s   (~37 h !!)            a full DOE catalyst AST
-# The 1-D models dominate the cost (~1.5 s of wall clock per AST cycle); the micro
-# and 0-D models are cheap, so `--models micro 0d --cycles 15000` runs a FULL AST in
-# a couple of minutes if you only need those two.
+# MEASURED wall-clock cost per AST cycle (600-cycle verification run, 0.6/0.95 V
+# protocol, BDF, max_step=0.1):
+#   micro 0.019 s/cyc | 0-D 0.38 s/cyc | 1-D no-aux 1.53 s/cyc | 1-D aux 1.59 s/cyc
+# so, running all four models together:
+#   N_CYCLES =     30  ->    180 s simulated    ~2 min wall clock
+#   N_CYCLES =    600  ->  3 600 s (1 h)        ~35 min
+#   N_CYCLES = 10 000  -> 60 000 s              ~10 h  (~9 h of it is the two 1-D
+#   N_CYCLES = 15 000  -> 90 000 s (full AST)   ~15 h   models; if you don't need
+#                                                       them: --models micro 0d
+#                                                       is ~20x cheaper)
 # Overridden on the command line by --cycles.
 N_CYCLES     = 10000           # -      -- number of AST cycles to simulate
 
@@ -637,13 +641,26 @@ def _check_physical(model, ucell, ecsa):
     """
     issues = []
 
+    # Any oxygen concentration below zero is unphysical, whatever the model calls
+    # it (PEMFC: C_O2_ccl / C_O2_cgdl_* / ...; PEMFC_0D: its own lumped names).
     variables = getattr(model, "variables", {}) or {}
-    if "C_O2_ccl" in variables:
-        c_o2 = np.asarray(variables["C_O2_ccl"], dtype=float)
-        if c_o2.size and np.nanmin(c_o2) < 0.0:
-            issues.append(f"cathode O2 went NEGATIVE (min {np.nanmin(c_o2):.3g} "
-                          f"mol/m3): the model cannot supply O2 fast enough for "
-                          f"this load step")
+    worst = None
+    for name, arr in variables.items():
+        if not str(name).startswith("C_O2"):
+            continue
+        a = np.asarray(arr, dtype=float)
+        if a.size and np.nanmin(a) < 0.0 and (worst is None or np.nanmin(a) < worst[1]):
+            worst = (name, float(np.nanmin(a)))
+    if worst:
+        issues.append(f"{worst[0]} went NEGATIVE (min {worst[1]:.3g} mol/m3): the "
+                      f"model cannot supply O2 fast enough for this load step")
+
+    if ucell is not None:
+        u = np.asarray(ucell, dtype=float)
+        if u.size and np.nanmin(u) < 0.0:
+            issues.append(f"cell voltage went NEGATIVE (min {np.nanmin(u):.3f} V): "
+                          f"the load drives this model far beyond its polarization "
+                          f"envelope, so its degradation numbers are meaningless")
 
     for name, arr in (("Ucell", ucell), ("ECSA", ecsa)):
         if arr is None:

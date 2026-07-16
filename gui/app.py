@@ -48,6 +48,17 @@ def _ensure_state():
         op = deepcopy({k: v for k, v in _OP_DEFAULT.items() if k != "current_density"})
         op.update(_overrides.get("op_inputs", {}))
         st.session_state["op_inputs"] = op
+    if "kinetic_consts" not in st.session_state:
+        # Pt-surface reaction rate constants ("Micro-scale CL" group).
+        # Defaults come from the module globals in model/coefficients.py;
+        # user-saved overrides win. The runner pushes these into the
+        # consuming modules before each simulation.
+        import model.coefficients as _coeffs
+        kin = {k: float(getattr(_coeffs, k))
+               for k in ("k1", "k1_ref", "k2", "k2_ref", "k3",
+                         "krdp", "k4", "k5", "kdet_ref")}
+        kin.update(_overrides.get("kinetic_consts", {}))
+        st.session_state["kinetic_consts"] = kin
 
     _opts = _overrides.get("options", {})
     st.session_state.setdefault("model_variant", _opts.get("model_variant", "Dual-scale"))
@@ -98,6 +109,7 @@ def _trigger_run():
                 method=s["method"],
                 polar_sweep=polar_sweep,
                 aux_system=s.get("aux_system", False),
+                kinetic_consts=s.get("kinetic_consts"),
             )
     except Exception as exc:
         st.session_state["last_result"] = {

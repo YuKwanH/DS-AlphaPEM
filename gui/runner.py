@@ -32,6 +32,63 @@ def _build_dyn_initial_state(params, op_inputs):
     return init_x_for('dynamic', op_inputs, params)
 
 
+# Names editable through the GUI's "Micro-scale CL" parameter group.
+_KINETIC_CONST_NAMES = ("k1", "k1_ref", "k2", "k2_ref", "k3",
+                        "krdp", "k4", "k5", "kdet_ref")
+
+
+def apply_kinetic_consts(kinetic_consts):
+    """Push the GUI-edited Pt-surface rate constants into the model modules.
+
+    The constants are module-level globals in ``model/coefficients.py``,
+    and every consumer (`kinetic_eq`, `state_eq`, `model`) star-imports
+    them -- meaning each module holds its own binding. Setting the value
+    on all four modules makes the edit effective regardless of which
+    module's function reads it at solve time. Model files themselves are
+    never modified.
+    """
+    if not kinetic_consts:
+        return
+    import model.coefficients as _coeffs
+    import model.kinetic_eq as _kin
+    import model.state_eq as _steq
+    import model.model as _mdl
+    for name in _KINETIC_CONST_NAMES:
+        if name not in kinetic_consts:
+            continue
+        val = float(kinetic_consts[name])
+        for mod in (_coeffs, _kin, _steq, _mdl):
+            if hasattr(mod, name):
+                setattr(mod, name, val)
+
+
+def _guarded_dxdt(model):
+    """Wrap ``model.dxdt`` with a positive floor on physically non-negative
+    states (saturations ``s_*``, concentrations ``C_*``, water content
+    ``lambda_*``) for the DERIVATIVE EVALUATION only.
+
+    Implicit solvers routinely probe trial states slightly outside the
+    physical domain; a marginally negative saturation or O2 concentration
+    then hits fractional powers ((C_ref/C)**kappa_c) or divisions in the
+    kinetics and produces NaN, killing the whole integration in one step.
+    Flooring the *read* values at a tiny epsilon keeps every evaluation
+    finite without modifying the model files or the solver state itself.
+    """
+    names = getattr(model, "variable_names", None) or getattr(
+        model, "solver_variable_names", [])
+    guard_idx = np.array([i for i, n in enumerate(names)
+                          if n.startswith(("s_", "C_", "lambda_"))], dtype=int)
+    if guard_idx.size == 0:
+        return model.dxdt
+
+    def dxdt(t, y):
+        yc = np.array(y, dtype=float, copy=True)
+        yc[guard_idx] = np.maximum(yc[guard_idx], 1e-6)
+        return model.dxdt(t, yc)
+
+    return dxdt
+
+
 def _solve_with_fallback(dxdt, t_span, y0, method, max_step):
     """Run ``solve_ivp`` with the automatic BDF -> LSODA solver chain.
 
@@ -104,7 +161,12 @@ def _resolve_transient_model(model_variant, aux_system):
 
 
 def run(params, op_inputs, model_variant, profile_func, t_span,
-        max_step=0.1, method="BDF", polar_sweep=None, aux_system=True):
+        max_step=0.1, method="BDF", polar_sweep=None, aux_system=True,
+        kinetic_consts=None):
+    # Apply the GUI-edited Pt-surface rate constants ("Micro-scale CL"
+    # group) before any model object is built.
+    apply_kinetic_consts(kinetic_consts)
+
     if model_variant == "Static":
         return _run_static(params, op_inputs, polar_sweep or {})
 
@@ -127,7 +189,7 @@ def run(params, op_inputs, model_variant, profile_func, t_span,
         y0 = _build_dyn_initial_state(params, op_inputs)
         model = PEMFC_dyn(parameters=params, operating_inputs=op_inputs,
                           initial_variable_values=y0, time_interval=t_span)
-        sol, fallback = _solve_with_fallback(model.dxdt, t_span, y0, method, max_step)
+        sol, fallback = _solve_with_fallback(_guarded_dxdt(model), t_span, y0, method, max_step)
         try:
             model._recovery(sol)
         except AttributeError:
@@ -150,7 +212,7 @@ def run(params, op_inputs, model_variant, profile_func, t_span,
                       variable_names=solver_variable_names,
                       flux_names=solver_flux_names)
         y0 = init_x(op_inputs, params)
-        sol, fallback = _solve_with_fallback(model.dxdt, t_span, y0, method, max_step)
+        sol, fallback = _solve_with_fallback(_guarded_dxdt(model), t_span, y0, method, max_step)
         model._recovery(sol)
 
     runtime = time.perf_counter() - t0
