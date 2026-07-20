@@ -61,22 +61,32 @@ def _get_xaxis_max(fallback=90.0):
 
 
 def _apply_time_xlim(ax, t_data=None):
-    """Clamp the x-axis of ``ax`` to (0, xaxis_max).
+    """Show the last ``xaxis_max`` seconds of the simulation on ``ax``.
 
-    Uses the user-picked cap from session state; if a data array is
-    provided, the effective upper bound is ``min(cap, t_data[-1])`` so
-    that a short sim isn't padded with empty space.
+    The window is anchored at the END of the trajectory: for a 300 s sim
+    with a 90 s window, the visible range is ``(210, 300)``, not
+    ``(0, 90)``. This matches the user expectation that the x-axis
+    control means "how much of the tail do I want to look at."
+
+    If ``t_data`` is None or empty, we fall back to ``(0, xaxis_max)``.
+    If the sim is shorter than the requested window, we show the whole
+    thing starting at ``t[0]`` rather than padding with empty space.
     """
-    xmax = _get_xaxis_max()
+    window = _get_xaxis_max()
     if t_data is not None:
         try:
             arr = np.asarray(t_data)
             if arr.size and np.isfinite(arr[-1]):
-                xmax = min(xmax, float(arr[-1]))
+                t_end   = float(arr[-1])
+                t_start = float(arr[0]) if arr.size else 0.0
+                t_start = max(t_start, t_end - window)
+                if t_end > t_start:
+                    ax.set_xlim(t_start, t_end)
+                    return
         except Exception:
             pass
-    if xmax > 0:
-        ax.set_xlim(0.0, xmax)
+    if window > 0:
+        ax.set_xlim(0.0, window)
 
 
 def _rmem_total_series(model):
