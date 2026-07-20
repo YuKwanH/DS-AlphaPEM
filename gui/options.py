@@ -156,7 +156,7 @@ def render(state):
 
     elif profile_kind == "AST cycling":
         pcfg["I_high"] = ic_col.number_input(
-            "Peak I_high (A)", value=float(pcfg.get("I_high", 25.8)),
+            "Peak I_high (A)", value=float(pcfg.get("I_high", 12.0)),
             min_value=0.0, step=0.5, format="%.2f", key="opt_I_high",
         )
         c1, c2 = st.columns(2)
@@ -239,33 +239,41 @@ def build_profile_func(state):
     Aact = state["params"].get("Aact", 31e-4)
 
     if pk == "Constant":
-        return profiles.constant(pcfg.get("i_const", 4000.0))
-    if pk == "Step":
-        return profiles.step(
+        func = profiles.constant(pcfg.get("i_const", 4000.0))
+    elif pk == "Step":
+        func = profiles.step(
             pcfg.get("step_tstart", 0.0), pcfg.get("step_tend", 6.0),
             pcfg.get("i_low", 20.0), pcfg.get("i_high", 12000.0),
             pcfg.get("tau_switch", 1.0), pcfg.get("t_switch", 3.0),
         )
-    if pk == "Polarization":
-        return profiles.polarization_ramp(
+    elif pk == "Polarization":
+        func = profiles.polarization_ramp(
             pcfg.get("i_max", 16500.0),
             int(pcfg.get("n_steps", 30)),
             pcfg.get("t_per_step", 60.0),
         )
-    if pk == "EIS":
-        return profiles.eis(
+    elif pk == "EIS":
+        func = profiles.eis(
             pcfg.get("i_dc", 10000.0), pcfg.get("ratio", 0.05),
             pcfg.get("frequency", 1.0),
         )
-    if pk == "AST cycling":
-        return profiles.ast_cycling(
+    elif pk == "AST cycling":
+        func = profiles.ast_cycling(
             pcfg.get("period", 6.0),
             pcfg.get("I_low", 1.0),
-            pcfg.get("I_high", 25.8),
+            pcfg.get("I_high", 12.0),
             pcfg.get("smoothing", 4.0),
             Aact,
         )
-    return profiles.constant(4000.0)
+    else:
+        func = profiles.constant(4000.0)
+
+    # Profiles that demand a high current instantly at t=0 (AST starts at
+    # I_high, EIS at ~i_DC) exceed what the default initial state can
+    # support and crash the solver in the first ~0.1 s. soft_start() adds
+    # a short ramp-in only in that case; the preview below shows the same
+    # wrapped signal the solver will integrate.
+    return profiles.soft_start(func)
 
 
 def _draw_profile_preview(profile_func, t_span):

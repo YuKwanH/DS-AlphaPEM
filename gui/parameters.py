@@ -63,6 +63,21 @@ PARAM_GROUPS = {
         ("p",  "n_mem",       "Membrane nodes",        "-",      "%d"),
         ("p",  "n_group_pt",  "Pt-particle bins",      "-",      "%d"),
     ],
+    # Chemical rate constants for the Pt surface reactions (micro-scale
+    # catalyst-layer degradation). Defined as module globals in
+    # model/coefficients.py; the GUI runner pushes edited values into every
+    # consuming module (kinetic_eq / state_eq / model) before each run.
+    "Micro-scale CL": [
+        ("kin", "k1",        "Pt dissolution fwd rate",           "-", "%.6g"),
+        ("kin", "k1_ref",    "Pt dissolution bwd rate",           "-", "%.6g"),
+        ("kin", "k2",        "Pt oxidation fwd rate",             "-", "%.6g"),
+        ("kin", "k2_ref",    "Pt oxidation bwd rate",             "-", "%.6g"),
+        ("kin", "k3",        "Pt-oxide chemical dissolution",     "-", "%.6g"),
+        ("kin", "krdp",      "Pt redeposition rate",              "-", "%.6g"),
+        ("kin", "k4",        "Reaction 4 rate (reserved)",        "-", "%.6g"),
+        ("kin", "k5",        "Reaction 5 rate (reserved)",        "-", "%.6g"),
+        ("kin", "kdet_ref",  "Pt detachment ref rate",            "-", "%.6g"),
+    ],
 }
 
 DEFAULT_VISIBLE = ["Operating", "GC (gas channel)", "GDL", "CL (catalyst layer)", "MEM (membrane)"]
@@ -80,7 +95,8 @@ def render(state):
                        help="Save the current parameter values as the "
                             "default. They will be pre-loaded next time "
                             "the GUI opens."):
-        _user_defaults.save_parameters(state["params"], state["op_inputs"])
+        _user_defaults.save_parameters(state["params"], state["op_inputs"],
+                                       state.get("kinetic_consts", {}))
         st.toast("Parameters saved as default.", icon="💾")
 
     visible = st.multiselect(
@@ -94,18 +110,21 @@ def render(state):
 
     params = state["params"]
     op = state["op_inputs"]
+    kin = state.setdefault("kinetic_consts", {})
+
+    _stores = {"op": op, "p": params, "kin": kin}
 
     for group_name in visible:
         with st.expander(group_name, expanded=(group_name == "Operating")):
             items = [
                 it for it in PARAM_GROUPS[group_name]
-                if (it[0] == "op" and it[1] in op) or (it[0] == "p" and it[1] in params)
+                if it[1] in _stores.get(it[0], {})
             ]
             for row_start in range(0, len(items), 2):
                 cols = st.columns(2, gap="small")
                 for col_idx, item in enumerate(items[row_start:row_start + 2]):
                     store, key, label, unit, fmt = item
-                    target = op if store == "op" else params
+                    target = _stores[store]
                     current = target[key]
                     widget_label = f"{key} ({unit})" if unit not in ("", "-") else key
                     with cols[col_idx]:

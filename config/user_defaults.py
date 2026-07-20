@@ -26,28 +26,26 @@ _OPTION_KEYS = (
 )
 
 
+_EMPTY = {"parameters": {}, "op_inputs": {}, "options": {}, "kinetic_consts": {}}
+
+
 def load() -> dict:
     """Return the user-defaults dict, or an empty structure if none saved."""
     if not _PATH.exists():
-        return {"parameters": {}, "op_inputs": {}, "options": {}}
+        return {k: dict(v) for k, v in _EMPTY.items()}
     try:
         with _PATH.open("r", encoding="utf-8") as f:
             data = json.load(f)
     except (json.JSONDecodeError, OSError):
-        return {"parameters": {}, "op_inputs": {}, "options": {}}
-    return {
-        "parameters": dict(data.get("parameters", {})),
-        "op_inputs":  dict(data.get("op_inputs",  {})),
-        "options":    dict(data.get("options",    {})),
-    }
+        return {k: dict(v) for k, v in _EMPTY.items()}
+    return {k: dict(data.get(k, {})) for k in _EMPTY}
 
 
 def _dump(payload: dict) -> None:
     """Write the merged payload to disk, preserving any keys we don't touch."""
-    existing = load() if _PATH.exists() else {"parameters": {}, "op_inputs": {}, "options": {}}
-    existing["parameters"].update(payload.get("parameters", {}))
-    existing["op_inputs"].update(payload.get("op_inputs",   {}))
-    existing["options"].update(payload.get("options",       {}))
+    existing = load()
+    for bucket in _EMPTY:
+        existing[bucket].update(payload.get(bucket, {}))
     with _PATH.open("w", encoding="utf-8") as f:
         json.dump(existing, f, indent=2, ensure_ascii=False)
         f.write("\n")
@@ -64,15 +62,20 @@ def _jsonable(v):
     return None       # numpy arrays, callables (current_density lambda), etc.
 
 
-def save_parameters(params: dict, op_inputs: dict) -> None:
-    """Save the current physics parameters and operating inputs as defaults.
+def save_parameters(params: dict, op_inputs: dict,
+                    kinetic_consts: dict | None = None) -> None:
+    """Save the current physics parameters, operating inputs, and Pt-surface
+    rate constants ("Micro-scale CL" group) as defaults.
     ``current_density`` (a lambda) is skipped -- it's a session-only value."""
     params_ser = {k: _jsonable(v) for k, v in params.items()
                   if _jsonable(v) is not None and not callable(v)}
     op_ser = {k: _jsonable(v) for k, v in op_inputs.items()
               if k != "current_density" and _jsonable(v) is not None
               and not callable(v)}
-    _dump({"parameters": params_ser, "op_inputs": op_ser})
+    kin_ser = {k: _jsonable(v) for k, v in (kinetic_consts or {}).items()
+               if _jsonable(v) is not None}
+    _dump({"parameters": params_ser, "op_inputs": op_ser,
+           "kinetic_consts": kin_ser})
 
 
 def save_options(state) -> None:

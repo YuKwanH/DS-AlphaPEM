@@ -89,6 +89,67 @@ def _apply_time_xlim(ax, t_data=None):
         ax.set_xlim(0.0, window)
 
 
+def _apply_robust_ylim(ax, *_ignored, pad_frac=0.10, k_sigma=4.0):
+    """Set y-limits robustly from the traces drawn on ``ax``.
+
+    Call AFTER plotting and AFTER ``_apply_time_xlim`` -- the helper reads
+    the axes' current x-window and only considers samples inside it.
+
+    Why not matplotlib's default autoscale: unconverged solver samples
+    (startup transients, or a diverging 0D-benchmark tail) reach values
+    like Ucell = -2.5 V that stretch the axis and flatten the real signal.
+    Why not plain percentiles: a diverging segment can easily exceed 1 %
+    of the samples, so p1/p99 still include it.
+
+    Approach -- per-trace sigma clipping:
+      1. mask each Line2D's data to the visible x-window, finite only;
+      2. estimate a robust center (median) and spread (half the p16-p84
+         band, ~1 sigma for unimodal data; for square waves both levels
+         stay inside ~1 sigma so nothing legitimate is clipped);
+      3. reject samples farther than ``k_sigma`` * spread from the median
+         (diverging tails, startup spikes);
+      4. y-limits = union of every trace's surviving min/max, padded.
+
+    Extra positional args are accepted and ignored for backwards
+    compatibility with the previous (series-based) signature.
+    """
+    xmin, xmax = ax.get_xlim()
+    lo, hi = np.inf, -np.inf
+
+    for line in ax.get_lines():
+        try:
+            x = np.asarray(line.get_xdata(), dtype=float).ravel()
+            y = np.asarray(line.get_ydata(), dtype=float).ravel()
+        except (TypeError, ValueError):
+            continue
+        n = min(x.size, y.size)
+        if n == 0:
+            continue
+        x, y = x[:n], y[:n]
+        m = np.isfinite(x) & np.isfinite(y) & (x >= xmin) & (x <= xmax)
+        yw = y[m]
+        if yw.size == 0:
+            continue
+        if yw.size < 8:
+            lo = min(lo, float(yw.min())); hi = max(hi, float(yw.max()))
+            continue
+        med = float(np.median(yw))
+        p16, p84 = np.percentile(yw, [16.0, 84.0])
+        sigma = max((p84 - p16) / 2.0, abs(med) * 1e-6, 1e-12)
+        keep = yw[np.abs(yw - med) <= k_sigma * sigma]
+        if keep.size == 0:
+            keep = yw
+        lo = min(lo, float(keep.min())); hi = max(hi, float(keep.max()))
+
+    if not (np.isfinite(lo) and np.isfinite(hi)):
+        return
+    if hi <= lo:                       # flat signal -- pad around the value
+        span = max(abs(hi), 1.0) * 0.05
+        lo, hi = lo - span, hi + span
+    pad = (hi - lo) * pad_frac
+    ax.set_ylim(lo - pad, hi + pad)
+
+
 def _rmem_total_series(model):
     """Return the total per-cell membrane resistance vs time (Ω·m²).
 
@@ -539,6 +600,13 @@ def _tab_cell_performance(model, held=None,
     for _ax in ax:
         _apply_time_xlim(_ax, t)
 
+    # Robust y-limits: ignore startup-transient outliers (e.g. an
+    # unconverged Ucell dip in the first solver steps) that otherwise
+    # stretch the autoscale and flatten the real signal.
+    _apply_robust_ylim(ax[0], i_fc, bench_echem.get("i_fc"))
+    _apply_robust_ylim(ax[1], Ucell, bench_echem.get("Ucell"))
+    _apply_robust_ylim(ax[2], Rmem)
+
     fig.tight_layout()
     st.pyplot(fig, clear_figure=True)
 
@@ -738,6 +806,7 @@ def _tab_manifolds(model, held=None):
         axes.flatten()[0].legend(fontsize=7, loc="best")
     for _ax in axes.flatten():
         _apply_time_xlim(_ax, t)
+        _apply_robust_ylim(_ax)
     fig.tight_layout()
     st.pyplot(fig, clear_figure=True)
 
@@ -759,6 +828,7 @@ def _tab_water(model, held=None):
         ax_i.set_ylabel(axis_label(name))
         ax_i.grid(True, alpha=0.3)
         _apply_time_xlim(ax_i, t)
+        _apply_robust_ylim(ax_i, y)
     fig.tight_layout()
     st.pyplot(fig, clear_figure=True)
 
@@ -823,6 +893,9 @@ def _tab_degradation(model, held=None,
     ax[1].grid(True, alpha=0.3)
     for _ax in ax:
         _apply_time_xlim(_ax, t)
+    # Robust y-limits so a stray outlier sample doesn't stretch the scale.
+    _apply_robust_ylim(ax[0], delta, bench_variables.get("Hmem"))
+    _apply_robust_ylim(ax[1], s_n, bench_echem.get("S_N"))
     fig.tight_layout()
     st.pyplot(fig, clear_figure=True)
 
@@ -884,5 +957,6 @@ def _tab_custom(model, held=None, bench_variables=None, bench_echem=None):
     ax.grid(True, alpha=0.3)
     # The Custom tab's x axis is always time; clamp it to the shared window.
     _apply_time_xlim(ax, t_1d)
+    _apply_robust_ylim(ax)
     fig.tight_layout()
     st.pyplot(fig, clear_figure=True)
