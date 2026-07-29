@@ -89,7 +89,8 @@ def _guarded_dxdt(model):
     return dxdt
 
 
-def _solve_with_fallback(dxdt, t_span, y0, method, max_step):
+def _solve_with_fallback(dxdt, t_span, y0, method, max_step,
+                         solve_kwargs=None):
     """Run ``solve_ivp`` with the automatic BDF -> LSODA solver chain.
 
     Tries ``method`` first (BDF by default). If that attempt fails for
@@ -103,9 +104,17 @@ def _solve_with_fallback(dxdt, t_span, y0, method, max_step):
     Returns ``(sol, fallback_used)``. ``fallback_used = True`` means
     LSODA finished the integration after the primary method could not.
     """
+    solve_kwargs = dict(solve_kwargs or {})
+
     def _attempt(m):
+        attempt_kwargs = dict(solve_kwargs)
+        if m not in ("BDF", "RADAU"):
+            attempt_kwargs.pop("jac_sparsity", None)
         try:
-            sol = solve_ivp(dxdt, t_span, y0, method=m, max_step=max_step)
+            sol = solve_ivp(
+                dxdt, t_span, y0, method=m, max_step=max_step,
+                **attempt_kwargs,
+            )
         except Exception:
             return None
         return sol
@@ -212,7 +221,13 @@ def run(params, op_inputs, model_variant, profile_func, t_span,
                       variable_names=solver_variable_names,
                       flux_names=solver_flux_names)
         y0 = init_x(op_inputs, params)
-        sol, fallback = _solve_with_fallback(_guarded_dxdt(model), t_span, y0, method, max_step)
+        solve_kwargs = {"atol": 1e-4}
+        if (method or "BDF").upper() in ("BDF", "RADAU"):
+            solve_kwargs["jac_sparsity"] = model.jac_sparsity(y0)
+        sol, fallback = _solve_with_fallback(
+            model.dxdt, t_span, y0, method, max_step,
+            solve_kwargs=solve_kwargs,
+        )
         model._recovery(sol)
 
     runtime = time.perf_counter() - t0

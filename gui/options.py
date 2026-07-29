@@ -78,7 +78,7 @@ def render(state):
     profile_kind = tp_col.selectbox(
         "Test profile",
         options=profiles.PROFILE_KINDS,
-        index=profiles.PROFILE_KINDS.index(state.get("profile_kind", "AST cycling")),
+        index=profiles.PROFILE_KINDS.index(state.get("profile_kind", "Step")),
         key="opt_profile_kind",
     )
     state["profile_kind"] = profile_kind
@@ -93,12 +93,12 @@ def render(state):
 
     elif profile_kind == "Step":
         pcfg["i_high"] = ic_col.number_input(
-            "Peak i_high (A/m²)", value=float(pcfg.get("i_high", 12000.0)),
+            "Peak i_high (A/m²)", value=float(pcfg.get("i_high", 14500.0)),
             min_value=0.0, step=500.0, format="%.4g", key="opt_i_high",
         )
         st.caption(
-            "Periodic tanh-smoothed square load — defaults match "
-            "`simulation/control/square load.ipynb`."
+            "Periodic tanh-smoothed square load. Defaults match "
+            "`AST example.ipynb`."
         )
         c1, c2 = st.columns(2)
         pcfg["step_tstart"] = c1.number_input(
@@ -111,15 +111,15 @@ def render(state):
         )
         c3, c4 = st.columns(2)
         pcfg["i_low"] = c3.number_input(
-            "i_low (A/m²)", value=float(pcfg.get("i_low", 20.0)),
+            "i_low (A/m²)", value=float(pcfg.get("i_low", 1000.0)),
             min_value=0.0, step=10.0, format="%.4g", key="opt_i_low",
         )
         pcfg["tau_switch"] = c4.number_input(
-            "Ramp begin tau_switch (s)", value=float(pcfg.get("tau_switch", 1.0)),
+            "Ramp begin tau_switch (s)", value=float(pcfg.get("tau_switch", 1.5)),
             min_value=0.0, step=0.1, format="%.2f", key="opt_tau_switch",
         )
         pcfg["t_switch"] = st.number_input(
-            "Ramp duration t_switch (s)", value=float(pcfg.get("t_switch", 3.0)),
+            "Ramp duration t_switch (s)", value=float(pcfg.get("t_switch", 1.0)),
             min_value=0.05, step=0.1, format="%.2f", key="opt_t_switch",
         )
 
@@ -185,7 +185,7 @@ def render(state):
         step=1.0, format="%.2f", key="opt_t_start",
     )
     state["t_end"] = c2.number_input(
-        "t_end (s)", value=float(state.get("t_end", 30.0)),
+        "t_end (s)", value=float(state.get("t_end", 30000.0)),
         step=1.0, format="%.2f", key="opt_t_end",
     )
     c3, c4 = st.columns(2)
@@ -243,8 +243,8 @@ def build_profile_func(state):
     elif pk == "Step":
         func = profiles.step(
             pcfg.get("step_tstart", 0.0), pcfg.get("step_tend", 6.0),
-            pcfg.get("i_low", 20.0), pcfg.get("i_high", 12000.0),
-            pcfg.get("tau_switch", 1.0), pcfg.get("t_switch", 3.0),
+            pcfg.get("i_low", 1000.0), pcfg.get("i_high", 14500.0),
+            pcfg.get("tau_switch", 1.5), pcfg.get("t_switch", 1.0),
         )
     elif pk == "Polarization":
         func = profiles.polarization_ramp(

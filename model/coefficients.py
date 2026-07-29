@@ -59,15 +59,15 @@ Kem_in = 1.0e-6 # kg.s-1.Pa-1. It is the exhaust manifold inlet orifice constant
 Kem_out = 1.0e-6  # kg.s-1.Pa-1. It is the exhaust manifold outlet orifice constant.
 
 # Chemical constants for Pt surface reactions
-k1 = 2.7039881676192844e-14
+k1 = 1.735e-17
 k1_ref = 1e-18
-k2 = 1.4212927332005734e-14
+k2 = 6.335e-15
 k2_ref = 1e-13
-k3 = 2.0835186763817587e-16
-krdp = 9.719840717584284e-08
+k3 = 1.13e-14
+krdp = 1.77e-11
 k4 = 0
 k5 = 0
-kdet_ref = 6.920064249544073e-24
+kdet_ref = 1.32e-23
 rho_cc = 2.26
 Mcc = 12.01
 Ueq_4 = 0.2

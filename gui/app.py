@@ -63,10 +63,17 @@ def _ensure_state():
     _opts = _overrides.get("options", {})
     st.session_state.setdefault("model_variant", _opts.get("model_variant", "Dual-scale"))
     st.session_state.setdefault("aux_system",    _opts.get("aux_system",    False))
-    st.session_state.setdefault("profile_kind",  _opts.get("profile_kind",  "AST cycling"))
-    st.session_state.setdefault("profile_cfg",   _opts.get("profile_cfg",   {}))
+    st.session_state.setdefault("profile_kind",  _opts.get("profile_kind",  "Step"))
+    st.session_state.setdefault("profile_cfg",   _opts.get("profile_cfg", {
+        "step_tstart": 0.0,
+        "step_tend": 6.0,
+        "i_low": 1000.0,
+        "i_high": 14500.0,
+        "tau_switch": 1.5,
+        "t_switch": 1.0,
+    }))
     st.session_state.setdefault("t_start",       _opts.get("t_start",       0.0))
-    st.session_state.setdefault("t_end",         _opts.get("t_end",         20.0))
+    st.session_state.setdefault("t_end",         _opts.get("t_end",         30000.0))
     st.session_state.setdefault("max_step",      _opts.get("max_step",      0.1))
     st.session_state.setdefault("method",        _opts.get("method",        "BDF"))
     st.session_state.setdefault("visible_groups", panel_params.DEFAULT_VISIBLE)
