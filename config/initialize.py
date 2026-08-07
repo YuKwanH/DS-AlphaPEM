@@ -8,10 +8,10 @@ current_parameters = {'t_step': (0, 3600, 100, 1.5), 'i_step': (0.5e4, 1.5e4),
                                         'delta_pola': (30, 30, 0.1e4, 60), 'i_max_pola': 1.65e4, # 50A
                                         'i_EIS': 1.0e4, 'ratio_EIS': 0.05, 't_EIS': 15, 'f_EIS': (-3, 5, 90, 50)}
  
-operating_inputs = {'current_density': lambda x: 0.1e4, 'Tfc': 353.15, 
-                                    'Pa_des': 1.8e5, 'Pc_des': 1.8e5,
-                                    'Phi_a_des': 0.0, 'Phi_c_des': 0.85,
-                                    'Sa': 1.2, 'Sc': 2.,
+operating_inputs = {'current_density': lambda x: 0.1e4, 'Tfc': 323.15, 
+                                    'Pa_des': 1.3e5, 'Pc_des': 1.3e5,
+                                    'Phi_a_des': 0.0, 'Phi_c_des': 0.0,
+                                    'Sa': 1.2, 'Sc': 2.5,
                                     'Imin_aux': 10}
 
 undetermined_physical_parameters = {'epsilon_gdl': 0.5304, "epsilon_cl": 0.1308,
