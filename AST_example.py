@@ -129,7 +129,8 @@ AST_OPTIONS = {
 OUTPUT_OPTIONS = {
     "show_progress": True,
     "show_plots": True,
-    "save_summary": True,
+    # AST results are displayed only; no result file is written by default.
+    "save_summary": False,
     "save_figures": False,
     "suppress_model_warnings": True,
 }
@@ -664,6 +665,8 @@ def run_ast(*, duration_override=None, output_options=None):
 
 def verify_ast_file(duration=VERIFY_DURATION_SECONDS):
     """Run a reduced 1D + 0D AST through the same production code path."""
+    if OUTPUT_OPTIONS["save_summary"] or OUTPUT_OPTIONS["save_figures"]:
+        raise AssertionError("AST outputs must not be saved by default.")
     verification_output = deepcopy(OUTPUT_OPTIONS)
     verification_output.update({
         "show_plots": False,

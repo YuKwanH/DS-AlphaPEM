@@ -19,8 +19,9 @@ RUN_DUAL_SCALE_CALIBRATION = True
 
 
 import argparse
+import csv
 from copy import deepcopy
-import json
+import io
 import math
 import os
 from threading import Lock
@@ -40,7 +41,7 @@ from gui.calib_backend import run_calibration
 # COMMON OUTPUT SETTINGS
 # =============================================================================
 
-# Write the selected workflow's result to calibration_result.json.
+# Write the selected workflow's result to calibration_result.csv.
 SAVE_RESULT = True
 
 # Display the selected workflow's result figure.
@@ -146,7 +147,7 @@ DUAL_SCALE_PARAMS_TO_FIT = {
 # =============================================================================
 
 RESULT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                           "calibration_result.json")
+                           "calibration_result.csv")
 
 
 def _selected_calibration(selectors=None):
@@ -167,22 +168,56 @@ def _selected_calibration(selectors=None):
     return selected[0]
 
 
-def _json_ready(value):
-    """Convert NumPy-rich result dictionaries into JSON-safe values."""
-    if isinstance(value, np.ndarray):
-        return value.tolist()
-    if isinstance(value, np.generic):
-        return value.item()
+def _csv_result_rows(value, field=(), index=()):
+    """Yield flattened CSV rows while preserving nested result structures."""
     if isinstance(value, dict):
-        return {str(key): _json_ready(item) for key, item in value.items()}
+        for key, item in value.items():
+            yield from _csv_result_rows(item, field + (str(key),), index)
+        return
+    if isinstance(value, np.ndarray):
+        if value.ndim == 0:
+            yield from _csv_result_rows(value.item(), field, index)
+            return
+        for item_index in np.ndindex(value.shape):
+            yield from _csv_result_rows(
+                value[item_index], field,
+                index + tuple(str(part) for part in item_index),
+            )
+        return
     if isinstance(value, (list, tuple)):
-        return [_json_ready(item) for item in value]
-    return value
+        for item_index, item in enumerate(value):
+            yield from _csv_result_rows(
+                item, field, index + (str(item_index),)
+            )
+        return
+    if isinstance(value, np.generic):
+        value = value.item()
+    yield {
+        "field": ".".join(field),
+        "index": ".".join(index),
+        "value": value,
+    }
+
+
+def _write_result_csv(stream, result):
+    """Write every calibration result value in a portable long-form CSV."""
+    workflow = str(result.get("calibration", ""))
+    writer = csv.DictWriter(
+        stream,
+        fieldnames=("calibration", "field", "index", "value"),
+        lineterminator="\n",
+    )
+    writer.writeheader()
+    for row in _csv_result_rows(
+        {key: value for key, value in result.items()
+         if key != "calibration"}
+    ):
+        writer.writerow({"calibration": workflow, **row})
 
 
 def _save_result(result):
-    with open(RESULT_PATH, "w", encoding="utf-8") as stream:
-        json.dump(_json_ready(result), stream, indent=2)
+    with open(RESULT_PATH, "w", encoding="utf-8", newline="") as stream:
+        _write_result_csv(stream, result)
     print(f"Result saved: {RESULT_PATH}")
 
 
@@ -946,6 +981,28 @@ def _plot_dual_scale_result(result):
 def verify_calibration_file():
     """Run short checks without launching any optimizer or opening plots."""
     print("Verifying calibration.py ...")
+
+    # Confirm that nested calibration results are preserved in CSV rows.
+    csv_buffer = io.StringIO(newline="")
+    _write_result_csv(csv_buffer, {
+        "calibration": "verification",
+        "best_params": {"parameter_a": 1.25},
+        "history": [(1, 0.5), (2, 0.25)],
+        "curve": np.array([3.0, 4.0]),
+    })
+    csv_buffer.seek(0)
+    csv_rows = list(csv.DictReader(csv_buffer))
+    assert csv_rows
+    assert set(csv_rows[0]) == {"calibration", "field", "index", "value"}
+    assert all(row["calibration"] == "verification" for row in csv_rows)
+    assert any(
+        row["field"] == "best_params.parameter_a"
+        and float(row["value"]) == 1.25
+        for row in csv_rows
+    )
+    assert sum(row["field"] == "history" for row in csv_rows) == 4
+    assert sum(row["field"] == "curve" for row in csv_rows) == 2
+    print("  [ok] nested calibration results serialize to CSV")
 
     # Selector behavior: all three modes are independently selectable and an
     # invalid zero/multiple selection is rejected before any long computation.
