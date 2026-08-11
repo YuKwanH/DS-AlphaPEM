@@ -89,8 +89,53 @@ def _guarded_dxdt(model):
     return dxdt
 
 
+def _progress_rhs(dxdt, t_span, progress_callback):
+    """Return an RHS wrapper that reports monotonically increasing time.
+
+    The ODE solvers can evaluate earlier trial times while constructing an
+    implicit step, so reporting every call would make a progress bar move
+    backwards.  Emit at most 1,001 updates (0.1% increments) instead and
+    leave the numerical state and derivative untouched.
+    """
+    if progress_callback is None:
+        return dxdt
+
+    start, end = (float(t_span[0]), float(t_span[1]))
+    duration = end - start
+    last_bucket = [-1]
+
+    def wrapped(t, y):
+        if duration > 0.0:
+            fraction = float(np.clip((float(t) - start) / duration, 0.0, 1.0))
+        else:
+            fraction = 1.0
+        bucket = min(1000, int(fraction * 1000.0))
+        if bucket > last_bucket[0]:
+            last_bucket[0] = bucket
+            try:
+                progress_callback(fraction, float(t))
+            except Exception:
+                # A display problem must never abort a physical simulation.
+                pass
+        return dxdt(t, y)
+
+    return wrapped
+
+
+def _finish_progress(progress_callback, sol):
+    """Complete an attached progress display after a successful solve."""
+    if (progress_callback is None or sol is None
+            or not bool(getattr(sol, "success", False))):
+        return
+    final_time = float(sol.t[-1]) if len(sol.t) else 0.0
+    try:
+        progress_callback(1.0, final_time)
+    except Exception:
+        pass
+
+
 def _solve_with_fallback(dxdt, t_span, y0, method, max_step,
-                         solve_kwargs=None):
+                         solve_kwargs=None, progress_callback=None):
     """Run ``solve_ivp`` with the automatic BDF -> LSODA solver chain.
 
     Tries ``method`` first (BDF by default). If that attempt fails for
@@ -112,7 +157,8 @@ def _solve_with_fallback(dxdt, t_span, y0, method, max_step,
             attempt_kwargs.pop("jac_sparsity", None)
         try:
             sol = solve_ivp(
-                dxdt, t_span, y0, method=m, max_step=max_step,
+                _progress_rhs(dxdt, t_span, progress_callback),
+                t_span, y0, method=m, max_step=max_step,
                 **attempt_kwargs,
             )
         except Exception:
@@ -171,7 +217,7 @@ def _resolve_transient_model(model_variant, aux_system):
 
 def run(params, op_inputs, model_variant, profile_func, t_span,
         max_step=0.1, method="BDF", polar_sweep=None, aux_system=True,
-        kinetic_consts=None):
+        kinetic_consts=None, progress_callback=None):
     # Apply the GUI-edited Pt-surface rate constants ("Micro-scale CL"
     # group) before any model object is built.
     apply_kinetic_consts(kinetic_consts)
@@ -198,7 +244,10 @@ def run(params, op_inputs, model_variant, profile_func, t_span,
         y0 = _build_dyn_initial_state(params, op_inputs)
         model = PEMFC_dyn(parameters=params, operating_inputs=op_inputs,
                           initial_variable_values=y0, time_interval=t_span)
-        sol, fallback = _solve_with_fallback(_guarded_dxdt(model), t_span, y0, method, max_step)
+        sol, fallback = _solve_with_fallback(
+            _guarded_dxdt(model), t_span, y0, method, max_step,
+            progress_callback=progress_callback,
+        )
         try:
             model._recovery(sol)
         except AttributeError:
@@ -227,8 +276,11 @@ def run(params, op_inputs, model_variant, profile_func, t_span,
         sol, fallback = _solve_with_fallback(
             model.dxdt, t_span, y0, method, max_step,
             solve_kwargs=solve_kwargs,
+            progress_callback=progress_callback,
         )
         model._recovery(sol)
+
+    _finish_progress(progress_callback, sol)
 
     runtime = time.perf_counter() - t0
     msg = getattr(sol, "message", "")
@@ -365,7 +417,8 @@ def _run_static(params, op_inputs, polar_sweep):
 # ===========================================================================
 
 def run_0d_companion(params, op_inputs, profile_func, t_span,
-                     max_step=0.1, method="BDF", polar_sweep=None):
+                     max_step=0.1, method="BDF", polar_sweep=None,
+                     progress_callback=None):
     """Return ``(variables, echem_traj, polar, status)`` from a 0D run.
 
     The status dict has the same shape as the main ``run()``'s status so
@@ -375,10 +428,11 @@ def run_0d_companion(params, op_inputs, profile_func, t_span,
     if polar_sweep is not None:
         return _run_0d_polar(params, op_inputs, polar_sweep)
     return _run_0d_transient(params, op_inputs, profile_func, t_span,
-                             max_step, method)
+                             max_step, method, progress_callback)
 
 
-def _run_0d_transient(params, op_inputs, profile_func, t_span, max_step, method):
+def _run_0d_transient(params, op_inputs, profile_func, t_span, max_step, method,
+                      progress_callback=None):
     params    = dict(params)
     op_inputs = dict(op_inputs)
     op_inputs["current_density"] = profile_func
@@ -387,9 +441,15 @@ def _run_0d_transient(params, op_inputs, profile_func, t_span, max_step, method)
     try:
         model = PEMFC_0D(parameters=params, operating_inputs=op_inputs)
         y0 = model.default_initial_state(params, op_inputs)
-        info = model.solve(t_span=t_span, y0=y0, method=method,
-                           max_step=max_step, verbose=False, sparsity=False)
+        original_dxdt = model.dxdt
+        model.dxdt = _progress_rhs(original_dxdt, t_span, progress_callback)
+        try:
+            info = model.solve(t_span=t_span, y0=y0, method=method,
+                               max_step=max_step, verbose=False, sparsity=False)
+        finally:
+            model.dxdt = original_dxdt
         sol = info["sol"] if isinstance(info, dict) and "sol" in info else info
+        _finish_progress(progress_callback, sol)
         model._recovery(sol)
         runtime = time.perf_counter() - t0
         return {

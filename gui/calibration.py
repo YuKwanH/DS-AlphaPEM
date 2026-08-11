@@ -62,8 +62,7 @@ CALIB_PARAMS = {
     "Hcl":          ("Catalyst-layer thickness",     1e-5,   3e-5,   True,  "m"),
     "Hgdl":         ("GDL thickness",                2e-4,   4e-4,   True,  "m"),
     "e":            ("Bruggeman exponent (discrete)", None,  None,   False, "-", [3, 4, 5]),
-    # Below: alternative parameters from the same recipe; commented out
-    # there but kept available here so users can opt in.
+    # Additional supported parameters. All entries are selected by default.
     "tau":          ("Tortuosity exponent",          1.0,    4.0,    False, "-"),
     "Re":           ("Electronic resistance",        5e-7,   1e-5,   True,  "Ω·m²"),
     "epsilon_gdl":  ("GDL porosity",                 0.5,    0.8,    False, "-"),
@@ -72,10 +71,8 @@ CALIB_PARAMS = {
     "a_switch":     ("Switch coverage a",            0.05,   0.5,    False, "-"),
 }
 
-# The first nine entries above are the recipe's *active* (uncommented)
-# set — pre-selected by default in the multiselect.
-DEFAULT_PARAMS = ["OCV", "i0_c_ref", "kappa_c", "epsilon_mc",
-                  "epsilon_c", "epsilon_cl", "Hcl", "Hgdl", "e"]
+# Calibrate every supported parameter unless the user removes one.
+DEFAULT_PARAMS = list(CALIB_PARAMS)
 
 
 def _is_discrete(name):
@@ -111,6 +108,17 @@ OPTIMIZER_DEFAULT = "TPE (Optuna)"
 # run a transient settle at every measurement current and are honest about
 # the cost in the optimizer panel (caption + per-trial estimate).
 MODEL_VARIANTS = ("Static", "Dual-scale", "Dynamic")
+
+# Default calibration case. ``Dynamic`` with auxiliary disabled is routed to
+# the same PEMFC backend, but displaying that combination is misleading; use
+# the backend's honest model label directly.
+DEFAULT_MODEL_VARIANT = "Dual-scale"
+DEFAULT_AUX_SYSTEM = False
+DEFAULT_CONDITIONS = (
+    "T50_P300_HRC0",
+    "T50_P300_HRC50",
+    "T50_P500_HRC50",
+)
 
 
 # ----------------------------------------------------------------------------
@@ -157,10 +165,10 @@ def render(state, *, section_height=820):
     """Render the full three-column calibration page into ``state``."""
     state.setdefault("calib", {
         "dataset":      "Polarization",
-        "conditions":   [],
+        "conditions":   list(DEFAULT_CONDITIONS),
         "target":       "Polarization",
-        "model":        "Static",       # fastest default; recommended for full sweeps
-        "aux_system":   False,
+        "model":        DEFAULT_MODEL_VARIANT,
+        "aux_system":   DEFAULT_AUX_SYSTEM,
         "method":       "BDF",          # PDE solver — locked-in during a run
         "n_trials":     50,
         "optimizer":    OPTIMIZER_DEFAULT,
@@ -173,7 +181,7 @@ def render(state, *, section_height=820):
     # Migrate any stale state from earlier sessions so a returning user
     # never crashes on `MODEL_VARIANTS.index(...)`.
     if state["calib"].get("model") not in MODEL_VARIANTS:
-        state["calib"]["model"] = "Static"
+        state["calib"]["model"] = DEFAULT_MODEL_VARIANT
 
     col_data, col_opt, col_res = st.columns([1.15, 0.85, 1.45], gap="medium")
     with col_data:
@@ -239,14 +247,14 @@ def _render_data_viewer(state):
     st.divider()
     st.markdown("**Load profile preview** *(visualization only — does not change the loss)*")
     st.caption(
-        "The static calibration objective samples the experimental I_LOAD "
-        "values directly; the dwell setting and staircase below are a visual "
-        "reference for the test-bench protocol, not solver inputs."
+        "The calibration objective evaluates the experimental I_LOAD values "
+        "directly. The dwell setting and staircase below only visualize the "
+        "test-bench protocol; they do not change solver inputs or the loss."
     )
 
     # Editable dwell for Polarization / HFR — **affects the preview plot
-    # only**. The static calibration objective samples the experimental
-    # I_LOAD values directly, so the dwell value does not change the loss.
+    # only**. The objective evaluates the experimental I_LOAD values directly,
+    # so the dwell value does not change the solver or loss.
     dwell = None
     if cfg["dataset"] == "Polarization":
         cfg["dwell_pola"] = float(st.number_input(
@@ -254,8 +262,8 @@ def _render_data_viewer(state):
             value=float(cfg.get("dwell_pola", DWELL_POLA_S)),
             min_value=0.1, step=5.0, format="%.1f",
             key="calib_dwell_pola",
-            help="Test-bench hold time at each set-point. Static solver is "
-                 "algebraic, so this affects the preview's time axis only.",
+            help="Test-bench hold time shown on the preview's time axis. "
+                 "It does not change the calibration solver or loss.",
         ))
         dwell = cfg["dwell_pola"]
     elif cfg["dataset"] == "HFR":
@@ -264,7 +272,8 @@ def _render_data_viewer(state):
             value=float(cfg.get("dwell_hfr", DWELL_HFR_S)),
             min_value=0.1, step=5.0, format="%.1f",
             key="calib_dwell_hfr",
-            help="Test-bench hold time at each set-point.",
+            help="Test-bench hold time shown on the preview's time axis. "
+                 "It does not change the calibration solver or loss.",
         ))
         dwell = cfg["dwell_hfr"]
     else:
@@ -423,7 +432,9 @@ def _render_optimizer_panel(state):
     cfg["model"] = mc1.selectbox(
         "Model variant",
         options=MODEL_VARIANTS,
-        index=MODEL_VARIANTS.index(cfg.get("model", "Static")),
+        index=MODEL_VARIANTS.index(
+            cfg.get("model", DEFAULT_MODEL_VARIANT)
+        ),
         key="calib_model",
         help=("Static = PEMFC_stat algebraic solver (~50 ms / point, "
               "recommended).\n"
