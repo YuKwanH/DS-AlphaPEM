@@ -44,10 +44,10 @@ Eact = 73.2e3  # J.mol-1. It is the activation energy.
 #   Physical parameters
 n_cell = 22 # . It is the number of cell in the stack.
 # Auxiliary system parameters
-Vsm = 5e-3  # m3. It is the supply manifold volume.
-Vem = 5e-3  # m3. It is the exhaust manifold volume.
-tau_cp = 1  # s. It is the air compressor time constant.
-tau_hum = 1  # s. It is the humidifier time constant.
+Vsm = 8e-7  # m3. It is the supply manifold volume.
+Vem = 8e-7  # m3. It is the exhaust manifold volume.
+tau_cp = 2.45  # s. It is the air compressor time constant.
+tau_hum = 2.45  # s. It is the humidifier time constant.
 A_T = 1.26e-3  # m². It is the exhaust manifold throttle area
 
 Kp = 1e-7  # m².s-1.Pa-1. It is the proportional constant of the PD controller at the throttle
