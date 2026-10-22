@@ -14,7 +14,7 @@ solver_flux_names = ['Jv_a_in', 'Jv_a_out', 'Jv_c_in', 'Jv_c_out', 'J_H2_in', 'J
                                     'Jv_agc_agdl', 'Jv_agdl_agdl', 'Jv_agdl_acl', 'Jv_cgdl_cgc', 'Jv_cgdl_cgdl', 'Jv_ccl_cgdl', 
                                     'Jl_agdl_acl', 'Jl_agdl_agdl', 'Jl_ccl_cgdl', 'Jl_cgdl_cgdl',
                                     'J_lambda_mem_acl', 'J_lambda_mem_ccl', 'J_lambda_mem',
-                                    'J_H2_agc_agdl', 'J_H2_agdl_agdl', 'J_H2_agdl_acl', 'J_H2_acl_mem', 'J_H2_mem',
+                                    'J_H2_agc_agdl', 'J_H2_agdl_agdl', 'J_H2_agdl_acl', 'J_H2_acl_mem', 'J_H2_mem', 'J_H2_mem_ccl', 'J_O2_acl_mem', 'i_n',
                                     'J_O2_ccl_cgdl', 'J_O2_cgdl_cgdl', 'J_O2_cgdl_cgc', 'J_O2_mem_ccl', 'J_O2_mem',
                                     'J_Pt2_mem',
                                     'S_sorp_acl', 'S_sorp_ccl', 'Sp_acl', 'Sp_ccl','S_H2_acl','S_O2_ccl', 'Sl_acl', 'Sl_ccl',

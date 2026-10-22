@@ -29,6 +29,25 @@ gamma_evap = 1e-4  # Pa-1.s-1. It is the overall evaporation rate constant for w
 Kshape = 20  # . Mathematical factor governing lambda_eq smoothing.
 R_H2O = 1.8e-5
 R_iono = 5.56e-4
+
+# Model parameters for the membrane gas crossover (H2 and O2 permeation through the membrane)
+#   k = (k_a + k_b f_v) exp(E_v/R (1/Tref_co - 1/T))   if lambda < lambda_l_co  (vapour-equilibrated membrane)
+#   k = k_l exp(E_l/R (1/Tref_co - 1/T))                otherwise                (liquid-equilibrated membrane)
+#   Ref: Weber & Newman 2004; AlphaPEM thesis Eqs. 1.53-1.54 (without the kappa_co correction factor).
+k_H2_a = 0.29e-14  # mol.m-1.s-1.Pa-1. It is the H2 permeability of the dry membrane at Tref_co.
+k_H2_b = 2.2e-14  # mol.m-1.s-1.Pa-1. It is the H2 permeability gain per unit of water volume fraction f_v at Tref_co.
+k_H2_l = 1.8e-14  # mol.m-1.s-1.Pa-1. It is the H2 permeability of the liquid-equilibrated membrane at Tref_co.
+E_H2_v = 2.1e4  # J.mol-1. It is the activation energy of H2 permeation in the vapour-equilibrated membrane.
+E_H2_l = 1.8e4  # J.mol-1. It is the activation energy of H2 permeation in the liquid-equilibrated membrane.
+k_O2_a = 0.11e-14  # mol.m-1.s-1.Pa-1. It is the O2 permeability of the dry membrane at Tref_co.
+k_O2_b = 1.9e-14  # mol.m-1.s-1.Pa-1. It is the O2 permeability gain per unit of water volume fraction f_v at Tref_co.
+k_O2_l = 1.2e-14  # mol.m-1.s-1.Pa-1. It is the O2 permeability of the liquid-equilibrated membrane at Tref_co.
+E_O2_v = 2.2e4  # J.mol-1. It is the activation energy of O2 permeation in the vapour-equilibrated membrane.
+E_O2_l = 2.0e4  # J.mol-1. It is the activation energy of O2 permeation in the liquid-equilibrated membrane.
+Tref_co = 303.15  # K. It is the reference temperature of the permeability correlations.
+lambda_l_co = 17.6  # . It is the water content above which the membrane is taken as liquid-equilibrated.
+C_H2_mem_ccl = 0  # mol.m-3. It is the H2 concentration at the MEM/CCL face (crossed H2 is burnt on the cathode Pt).
+C_O2_acl_mem = 0  # mol.m-3. It is the O2 concentration at the ACL/MEM face (crossed O2 is burnt on the anode Pt).
 R_O2 = 2.598e+02
 R_N2 = 296.8
 R_H2 = 4.1243e3
@@ -159,13 +178,31 @@ def K0(epsilon, epsilon_c, epsilon_gdl):
     return epsilon / (8 * np.log(epsilon) ** 2) * (epsilon - 0.11) ** (0.785 + 2) * 4.6e-6 ** 2 / ((1 - 0.11) ** 0.785 * ((0.785 + 1) * epsilon - 0.11) ** 2) * np.exp(beta1 * epsilon_c)
 
 
-def k_H2(lambdaa, T, kappa_co):
-    # permeability coefficient of the membrane for hydrogen
-    E_H2_v, E_H2_l, Tref = 2.1e4, 1.8e4, 303.15; fv = (lambdaa * M_H2O / rho_H2O(T)) / (M_eq / rho_mem + lambdaa * M_H2O / rho_H2O(T))
-    return kappa_co * (0.29 + 2.2 * fv) * 1e-14 * np.exp(E_H2_v / R * (1 / Tref - 1 / T)) if lambdaa < 17.6 else kappa_co * 1.8 * 1e-14 * np.exp(E_H2_l / R * (1 / Tref - 1 / T))
+def f_v_mem(lambdaa, T):
+    # water volume fraction in the membrane, f_v = lambda V_w / (V_mem + lambda V_w)
+    return (lambdaa * M_H2O / rho_H2O(T)) / (M_eq / rho_mem + lambdaa * M_H2O / rho_H2O(T))
 
 
-def k_O2(lambdaa, T, kappa_co):
-    # permeability coefficient of the membrane for oxygen
-    E_O2_v, E_O2_l, Tref = 2.2e4, 2.0e4, 303.15; fv = (lambdaa * M_H2O / rho_H2O(T)) / (M_eq / rho_mem + lambdaa * M_H2O / rho_H2O(T))
-    return kappa_co * (0.11 + 1.9 * fv) * 1e-14 * np.exp(E_O2_v / R * (1 / Tref - 1 / T)) if lambdaa < 17.6 else kappa_co * 1.2 * 1e-14 * np.exp(E_O2_l / R * (1 / Tref - 1 / T))
+def k_H2(lambdaa, T):
+    # permeability coefficient of the membrane for hydrogen (mol.m-1.s-1.Pa-1), Weber & Newman 2004
+    if lambdaa < lambda_l_co:
+        return (k_H2_a + k_H2_b * f_v_mem(lambdaa, T)) * np.exp(E_H2_v / R * (1 / Tref_co - 1 / T))
+    return k_H2_l * np.exp(E_H2_l / R * (1 / Tref_co - 1 / T))
+
+
+def k_O2(lambdaa, T):
+    # permeability coefficient of the membrane for oxygen (mol.m-1.s-1.Pa-1), Weber & Newman 2004
+    if lambdaa < lambda_l_co:
+        return (k_O2_a + k_O2_b * f_v_mem(lambdaa, T)) * np.exp(E_O2_v / R * (1 / Tref_co - 1 / T))
+    return k_O2_l * np.exp(E_O2_l / R * (1 / Tref_co - 1 / T))
+
+
+def D_H2_mem(lambdaa, T):
+    # crossover diffusion coefficient of H2 in the membrane (m2.s-1). C_H2_mem is a gas-equivalent
+    # concentration (P = C R T), so J = -k dP/dx = -k R T dC/dx and D = k R T.
+    return k_H2(lambdaa, T) * R * T
+
+
+def D_O2_mem(lambdaa, T):
+    # crossover diffusion coefficient of O2 in the membrane (m2.s-1), D = k R T as for H2
+    return k_O2(lambdaa, T) * R * T

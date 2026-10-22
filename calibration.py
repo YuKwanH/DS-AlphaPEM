@@ -112,7 +112,7 @@ DUAL_SCALE_METHOD = "BDF"
 
 # Optimizer: "TPE (Optuna)", "Genetic algorithm", or "Grid search".
 DUAL_SCALE_OPTIMIZER = "TPE (Optuna)"
-DUAL_SCALE_N_TRIALS = 500
+DUAL_SCALE_N_TRIALS = 200
 DUAL_SCALE_SEED = 42
 
 # Leave empty to use every condition in the selected experimental dataset.

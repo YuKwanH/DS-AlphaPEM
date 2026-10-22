@@ -17,6 +17,7 @@ def dif_eq_int_values(t, x, operating_inputs, parameters):
     r_m = parameters['r_m']
     Wcp = x["Wcp"]
     Aact = parameters['Aact']
+    Tagdl, Tacl, Tmem, Tccl, Tcgdl = node_temperatures(x, parameters, Tfc)
     # Physical quantities
     # Pressures
     Pagc = (C_v_agc + C_H2_agc) * R * Tfc
@@ -24,10 +25,10 @@ def dif_eq_int_values(t, x, operating_inputs, parameters):
     Psat_fc =  Psat(Tfc)
     Psat_ext = Psat(Text)
     # Pressures in the stack
-    Pagdl = [(x[f'C_v_agdl_{i}'] + x[f'C_H2_agdl_{i}']) * R * Tfc for i in range(1, n_gdl + 1)]
-    Pacl = (x["C_v_acl"] + x["C_H2_acl"]) * R *Tfc
-    Pccl = (x["C_v_ccl"] + x["C_O2_ccl"] + x["C_N2"]) * R * Tfc
-    Pcgdl = [(x[f'C_v_cgdl_{i}'] + x[f'C_O2_cgdl_{i}'] + x["C_N2"]) * R * Tfc for i in range(1, n_gdl + 1)]
+    Pagdl = [(x[f'C_v_agdl_{i}'] + x[f'C_H2_agdl_{i}']) * R * Tagdl[i - 1] for i in range(1, n_gdl + 1)]
+    Pacl = (x["C_v_acl"] + x["C_H2_acl"]) * R * Tacl
+    Pccl = (x["C_v_ccl"] + x["C_O2_ccl"] + x["C_N2"]) * R * Tccl
+    Pcgdl = [(x[f'C_v_cgdl_{i}'] + x[f'C_O2_cgdl_{i}'] + x["C_N2"]) * R * Tcgdl[i - 1] for i in range(1, n_gdl + 1)]
     # Humidities
     Phi_agc = C_v_agc / C_v_sat(Tfc)
     Phi_cgc = C_v_cgc / C_v_sat(Tfc)
@@ -96,6 +97,7 @@ def calculate_flows(t, x ,operating_inputs, parameters, Pagc, Pcgc, Pacl,Pagdl, 
     Sa, Sc = operating_inputs['Sa'], operating_inputs['Sc']
     Tfc = operating_inputs["Tfc"]
     Imin_aux = operating_inputs["Imin_aux"]
+    Tagdl, Tacl, Tmem, Tccl, Tcgdl = node_temperatures(x, parameters, Tfc)
 
     Psat_fc = Psat(Tfc)
     # Mean values ...
@@ -140,15 +142,15 @@ def calculate_flows(t, x ,operating_inputs, parameters, Pagc, Pcgc, Pacl,Pagdl, 
     #________________________________________Dissolved water flows (mol.m-2.s-1)_______________________________________
     # Anode side
     J_lambda_mem_acl = 2.5 / 22 * iload / F * x['lambda_acl'] - \
-                                            rho_mem / M_eq * Dw(x['lambda_acl'], Tfc) * (x['lambda_mem_1'] - x['lambda_acl']) / (Hmem/ n_mem + Hcl/2)
+                                            rho_mem / M_eq * Dw(x['lambda_acl'], Tacl) * (x['lambda_mem_1'] - x['lambda_acl']) / (Hmem/ n_mem + Hcl/2)
     # Cathode side
     J_lambda_mem_ccl = 2.5 / 22 * iload / F * x['lambda_ccl'] - \
-                                            rho_mem / M_eq * Dw(x['lambda_ccl'], Tfc) * (x['lambda_ccl'] - x[f'lambda_mem_{n_mem}']) / (Hmem/ n_mem + Hcl/2)
+                                            rho_mem / M_eq * Dw(x['lambda_ccl'], Tccl) * (x['lambda_ccl'] - x[f'lambda_mem_{n_mem}']) / (Hmem/ n_mem + Hcl/2)
     # Membrane internal
     J_lambda_mem = [0] * (n_mem-1)
     for i in range(n_mem-1):
         J_lambda_mem[i] = 2.5 / 22 * iload / F * x[f'lambda_mem_{i+1}'] - \
-                                            rho_mem / M_eq * Dw(x[f'lambda_mem_{i+1}'], Tfc) * (x[f'lambda_mem_{i+2}'] - x[f'lambda_mem_{i+1}']) / (Hmem / n_mem)
+                                            rho_mem / M_eq * Dw(x[f'lambda_mem_{i+1}'], Tmem[i]) * (x[f'lambda_mem_{i+2}'] - x[f'lambda_mem_{i+1}']) / (Hmem / n_mem)
 
     # _____________________________________________Vapor flows (mol.m-2.s-1)____________________________________________
     # Convective vapor flows
@@ -160,43 +162,48 @@ def calculate_flows(t, x ,operating_inputs, parameters, Pagc, Pcgc, Pacl,Pagdl, 
     #   Anode side
     Jv_agdl_agdl = [0] * (n_gdl - 1)
     for i in range(1, n_gdl):
-        Jv_agdl_agdl[i-1] = - Da_eff(s_agdl_agdl[i], epsilon_gdl, Pagdl_agdl[i], Tfc, epsilon_c, epsilon_gdl) * \
+        Jv_agdl_agdl[i-1] = - Da_eff(s_agdl_agdl[i], epsilon_gdl, Pagdl_agdl[i], Tagdl[i - 1], epsilon_c, epsilon_gdl) * \
                                         (x[f'C_v_agdl_{i + 1}'] - x[f'C_v_agdl_{i}']) / (Hgdl / n_gdl)
-    Jv_agdl_acl = - 2 * Da_eff(s_agdl_agdl[-1], epsilon_mean, Pagdl_acl, (Tfc + Tfc) / 2, epsilon_c, epsilon_gdl) * \
+    Jv_agdl_acl = - 2 * Da_eff(s_agdl_agdl[-1], epsilon_mean, Pagdl_acl, (Tagdl[-1] + Tacl) / 2, epsilon_c, epsilon_gdl) * \
                                 (x["C_v_acl"] - x[f'C_v_agdl_{n_gdl}']) / (Hgdl / n_gdl + Hcl/2)
     #   Cathode side
     Jv_cgdl_cgdl = [0] * (n_gdl - 1)
     for i in range(1, n_gdl):
-        Jv_cgdl_cgdl[i-1] = - Dc_eff(s_cgdl_cgdl[i], epsilon_gdl, Pcgdl_cgdl[i], Tfc, epsilon_c, epsilon_gdl) * \
+        Jv_cgdl_cgdl[i-1] = - Dc_eff(s_cgdl_cgdl[i], epsilon_gdl, Pcgdl_cgdl[i], Tcgdl[i - 1], epsilon_c, epsilon_gdl) * \
                                         (x[f'C_v_cgdl_{i + 1}'] - x[f'C_v_cgdl_{i}']) / (Hgdl / n_gdl)
-    Jv_ccl_cgdl = - 2 * Dc_eff(s_cgdl_cgdl[1], epsilon_mean, Pccl_cgdl, (Tfc+ Tfc) / 2, epsilon_c, epsilon_gdl) * \
+    Jv_ccl_cgdl = - 2 * Dc_eff(s_cgdl_cgdl[1], epsilon_mean, Pccl_cgdl, (Tcgdl[0] + Tccl) / 2, epsilon_c, epsilon_gdl) * \
                             (x['C_v_cgdl_1'] - x["C_v_ccl"]) / (Hgdl / n_gdl + Hcl/2)
 
     #_____________________________________Liquid water flows (kg.m-2.s-1)__________________________________________
     # Anode side
     Jl_agdl_agdl = [0] * (n_gdl-1)
     for i in range(1, n_gdl):
-        Jl_agdl_agdl[i-1] = - sigma(Tfc) * K0(epsilon_gdl, epsilon_c, epsilon_gdl) / nu_l(Tfc) * abs(np.cos(theta_c_gdl)) * \
+        Jl_agdl_agdl[i-1] = - sigma(Tagdl[i - 1]) * K0(epsilon_gdl, epsilon_c, epsilon_gdl) / nu_l(Tagdl[i - 1]) * abs(np.cos(theta_c_gdl)) * \
                                         (epsilon_gdl / K0(epsilon_gdl, epsilon_c, epsilon_gdl)) ** 0.5 * (s_agdl_agdl[i] ** e +1e-7) * (1.417 - 4.24 * s_agdl_agdl[i] + 3.789 * s_agdl_agdl[i] ** 2) * \
                                         (x[f's_agdl_{i + 1}'] - x[f's_agdl_{i}']) / (Hgdl / n_gdl) 
-    Jl_agdl_acl =  -2*sigma((Tfc + Tfc) / 2) * K0(epsilon_mean, epsilon_c, epsilon_gdl) / nu_l((Tfc + Tfc) / 2) * abs(np.cos(theta_c_mean)) * \
+    Jl_agdl_acl =  -2*sigma((Tagdl[-1] + Tacl) / 2) * K0(epsilon_mean, epsilon_c, epsilon_gdl) / nu_l((Tagdl[-1] + Tacl) / 2) * abs(np.cos(theta_c_mean)) * \
                             (epsilon_mean / K0(epsilon_mean, epsilon_c, epsilon_gdl)) ** 0.5 * (s_agdl_acl ** e+1e-7) * (1.417 - 4.24 * s_agdl_acl + 3.789 * s_agdl_acl ** 2) * \
                             (x["s_acl"]- x[f's_agdl_{n_gdl}']) / (Hgdl / n_gdl+ Hcl/2)
     Jl_cgdl_cgdl = [0] * (n_gdl-1)
     for i in range(1, n_gdl):
-        Jl_cgdl_cgdl[i-1] = - sigma(Tfc) * K0(epsilon_gdl, epsilon_c, epsilon_gdl) / nu_l(Tfc) * abs(np.cos(theta_c_gdl)) * \
+        Jl_cgdl_cgdl[i-1] = - sigma(Tcgdl[i - 1]) * K0(epsilon_gdl, epsilon_c, epsilon_gdl) / nu_l(Tcgdl[i - 1]) * abs(np.cos(theta_c_gdl)) * \
                                         (epsilon_gdl / K0(epsilon_gdl, epsilon_c, epsilon_gdl)) ** 0.5 * (s_cgdl_cgdl[i] ** e) * (1.417 - 4.24 * s_cgdl_cgdl[i] + 3.789 * s_cgdl_cgdl[i] ** 2) * \
                                         (x[f's_cgdl_{i + 1}'] - x[f's_cgdl_{i}']) / (Hgdl / n_gdl)
-    Jl_ccl_cgdl =  -2*sigma((Tfc + Tfc) / 2) * K0(epsilon_mean, epsilon_c, epsilon_gdl) / nu_l((Tfc + Tfc) / 2) * abs(np.cos(theta_c_mean)) * \
+    Jl_ccl_cgdl =  -2*sigma((Tcgdl[0] + Tccl) / 2) * K0(epsilon_mean, epsilon_c, epsilon_gdl) / nu_l((Tcgdl[0] + Tccl) / 2) * abs(np.cos(theta_c_mean)) * \
                             (epsilon_mean / K0(epsilon_mean, epsilon_c, epsilon_gdl)) ** 0.5 *(s_cgdl_ccl  ** e) * (1.417 - 4.24 * s_cgdl_ccl  + 3.789 * s_cgdl_ccl  ** 2) * \
                             (x['s_cgdl_1'] -x["s_ccl"]) / (Hgdl / n_gdl + Hcl/2)
     
+    # __________________________________________Gas crossover (mol.m-2.s-1)___________________________________________
+    crossover = crossover_fluxes(x, Tmem, parameters)
+    J_H2_mem_ccl, J_O2_acl_mem = crossover['J_H2_mem_ccl'], crossover['J_O2_acl_mem']
+
     # __________________________________________H2 and O2 flows (mol.m-2.s-1)___________________________________________
-    # Hydrogen and oxygen consumption
+    # Hydrogen and oxygen consumption, Faraday plus recombination of the crossed gases on Pt
+    # (O2 + 2 H2 -> 2 H2O in the ACL, H2 + 1/2 O2 -> H2O in the CCL; J_O2_acl_mem <= 0)
     # Anode side
-    S_H2_acl = - iload / (2 * F * Hcl) 
+    S_H2_acl = - iload / (2 * F * Hcl) + 2 * J_O2_acl_mem / Hcl
     # Cathode side
-    S_O2_ccl = - iload / (4 * F * Hcl) 
+    S_O2_ccl = - iload / (4 * F * Hcl) - J_H2_mem_ccl / (2 * Hcl)
     # Conductive-convective H2 and O2 flows
     #   Anode side
     J_H2_agc_agdl = h_a(Pagc, Tfc, Wgc, Hgc) * (x['C_H2_agc'] - x['C_H2_agdl_1'])
@@ -207,40 +214,40 @@ def calculate_flows(t, x ,operating_inputs, parameters, Pagc, Pcgc, Pacl,Pagdl, 
     # Anode side
     J_H2_agdl_agdl = [0] * (n_gdl - 1)
     for i in range(1, n_gdl):
-        J_H2_agdl_agdl[i-1] = - Da_eff(s_agdl_agdl[i], epsilon_gdl, Pagdl_agdl[i], Tfc, epsilon_c, epsilon_gdl) * \
+        J_H2_agdl_agdl[i-1] = - Da_eff(s_agdl_agdl[i], epsilon_gdl, Pagdl_agdl[i], Tagdl[i - 1], epsilon_c, epsilon_gdl) * \
                                             (x[f'C_H2_agdl_{i + 1}'] - x[f'C_H2_agdl_{i}']) / (Hgdl / n_gdl)
-    J_H2_agdl_acl = - 2 * Da_eff(x["s_agdl_10"], epsilon_mean, Pagdl_acl, (Tfc + Tfc) / 2, epsilon_c, epsilon_gdl) * \
+    J_H2_agdl_acl = - 2 * Da_eff(x["s_agdl_10"], epsilon_mean, Pagdl_acl, (Tagdl[-1] + Tacl) / 2, epsilon_c, epsilon_gdl) * \
                                 (x["C_H2_acl"] - x[f'C_H2_agdl_{n_gdl}']) / (Hgdl / n_gdl + Hcl/2)
     #   Cathode side
     J_O2_cgdl_cgdl = [0] * (n_gdl - 1)
     for i in range(1, n_gdl):
-        J_O2_cgdl_cgdl[i-1] = - Dc_eff(s_cgdl_cgdl[i], epsilon_gdl, Pcgdl_cgdl[i], Tfc, epsilon_c, epsilon_gdl) * \
+        J_O2_cgdl_cgdl[i-1] = - Dc_eff(s_cgdl_cgdl[i], epsilon_gdl, Pcgdl_cgdl[i], Tcgdl[i - 1], epsilon_c, epsilon_gdl) * \
                                             (x[f'C_O2_cgdl_{i + 1}'] - x[f'C_O2_cgdl_{i}']) / (Hgdl / n_gdl)
-    J_O2_ccl_cgdl = - 2 * Dc_eff(x['s_cgdl_1'] , epsilon_mean, Pccl_cgdl, (Tfc+ Tfc) / 2, epsilon_c, epsilon_gdl) * \
+    J_O2_ccl_cgdl = - 2 * Dc_eff(x['s_cgdl_1'] , epsilon_mean, Pccl_cgdl, (Tcgdl[0] + Tccl) / 2, epsilon_c, epsilon_gdl) * \
                                 (x['C_O2_cgdl_1'] - x["C_O2_ccl"]) / (Hgdl / n_gdl + Hcl/2)   
 
     # __________________________________________Water generated (mol.m-3.s-1)___________________________________________
     # Water produced in the membrane at the CL through the chemical reaction and crossover
     #   Anode side
-    Sp_acl = 0
+    Sp_acl = - 2 * J_O2_acl_mem / Hcl
     #   Cathode side
-    Sp_ccl = iload / (2 * F * Hcl)
+    Sp_ccl = iload / (2 * F * Hcl) + J_H2_mem_ccl / Hcl
     # __________________________________________Phase transition (mol.m-3.s-1)___________________________________________
     # Water sorption in the CL:
     #   Anode side
-    S_sorp_acl = gamma_sorp(x['C_v_acl'], x['s_acl'], x['lambda_acl'], Tfc, Hcl, Kshape) * rho_mem / M_eq * \
-                            (lambda_eq(x['C_v_acl'], x['s_acl'], Tfc, Kshape) - x['lambda_acl'])
-    Sl_acl = Svl(x["s_acl"], x['C_v_acl'], x['C_v_acl'] +x['C_H2_acl'] , epsilon_cl, Tfc, gamma_cond, gamma_evap)
+    S_sorp_acl = gamma_sorp(x['C_v_acl'], x['s_acl'], x['lambda_acl'], Tacl, Hcl, Kshape) * rho_mem / M_eq * \
+                            (lambda_eq(x['C_v_acl'], x['s_acl'], Tacl, Kshape) - x['lambda_acl'])
+    Sl_acl = Svl(x["s_acl"], x['C_v_acl'], x['C_v_acl'] +x['C_H2_acl'] , epsilon_cl, Tacl, gamma_cond, gamma_evap)
     #   Cathode side
-    S_sorp_ccl = gamma_sorp(x['C_v_ccl'], x['s_ccl'], x['lambda_ccl'], Tfc, Hcl, Kshape) * rho_mem / M_eq * \
-                            (lambda_eq(x['C_v_ccl'], x['s_ccl'], Tfc, Kshape) - x['lambda_ccl'])
-    Sl_ccl = Svl(x["s_ccl"], x['C_v_ccl'], x['C_v_ccl'] + x['C_O2_ccl'] + x['C_N2'], epsilon_cl, Tfc, gamma_cond, gamma_evap)
+    S_sorp_ccl = gamma_sorp(x['C_v_ccl'], x['s_ccl'], x['lambda_ccl'], Tccl, Hcl, Kshape) * rho_mem / M_eq * \
+                            (lambda_eq(x['C_v_ccl'], x['s_ccl'], Tccl, Kshape) - x['lambda_ccl'])
+    Sl_ccl = Svl(x["s_ccl"], x['C_v_ccl'], x['C_v_ccl'] + x['C_O2_ccl'] + x['C_N2'], epsilon_cl, Tccl, gamma_cond, gamma_evap)
     # Liquid water generated through vapor condensation or degenerated through evaporation
     #   Anode side
-    Sl_agdl = [None] + [Svl(x[f's_agdl_{i}'], x[f'C_v_agdl_{i}'], x[f'C_v_agdl_{i}'] + x[f'C_H2_agdl_{i}'], epsilon_gdl, Tfc, gamma_cond, gamma_evap)
+    Sl_agdl = [None] + [Svl(x[f's_agdl_{i}'], x[f'C_v_agdl_{i}'], x[f'C_v_agdl_{i}'] + x[f'C_H2_agdl_{i}'], epsilon_gdl, Tagdl[i - 1], gamma_cond, gamma_evap)
                         for i in range(1, n_gdl + 1)]
     #   Cathode side
-    Sl_cgdl = [None] + [Svl(x[f's_cgdl_{i}'], x[f'C_v_cgdl_{i}'], Pc_des / (R * Tfc), epsilon_gdl, Tfc, gamma_cond, gamma_evap) 
+    Sl_cgdl = [None] + [Svl(x[f's_cgdl_{i}'], x[f'C_v_cgdl_{i}'], Pc_des / (R * Tcgdl[i - 1]), epsilon_gdl, Tcgdl[i - 1], gamma_cond, gamma_evap) 
                         for i in range(1, n_gdl + 1)]
     # Vapor generated through liquid water evaporation or degenerated through condensation
     Sv_agdl = [None] + [-x for x in Sl_agdl[1:]]
@@ -249,30 +256,6 @@ def calculate_flows(t, x ,operating_inputs, parameters, Pagc, Pcgc, Pacl,Pagdl, 
     Sv_cgdl = [None] + [-x for x in Sl_cgdl[1:]]
     Sv_ccl = - Sl_ccl
 
-    # __________________________________________Crossover (mol.m-3.s-1)___________________________________________
-
-    J_O2_mem = np.zeros(n_mem).tolist()
-    J_H2_mem = np.zeros(n_mem).tolist()
-    J_O2_mem_ccl = 0
-    J_H2_acl_mem = 0
-    # for i_node in np.arange(1, n_mem):
-    #     x_H2O = (x[f"lambda_mem_{i_node+1}"] * R_H2O) / (R_iono + x[f"lambda_mem_{i_node+1}"] * R_H2O)
-    #     k_H2_mem = (0.29 + 2.2 * x_H2O) * 1e-15 * np.exp(2.1e4 / R * (1 / 303 - 1 / x[f"Tmem_{i_node+1}"]))
-    #     k_O2_mem = (0.11 + 1.9 * x_H2O) * 1e-15 * np.exp(2.2e4 / R * (1 / 303 - 1 / x[f"Tmem_{i_node+1}"]))
-    #     D_H2 = 2.584 * np.exp(170 / x[f"Tmem_{i_node+1}"]) * k_O2_mem
-    #     D_O2 = 1348 * np.exp(-666 / x[f"Tmem_{i_node+1}"]) * k_H2_mem
-    #     if i_node == 1:
-    #         J_O2_mem[0] = -D_O2 * (x["C_O2_mem_1"] - 0) / (Hmem / n_mem)
-    #         J_H2_mem[0] = -D_H2 * (x[f"C_H2_mem_1"] - 0) / (Hmem / n_mem)-D_H2 * (x[f"C_H2_mem_{i_node + 1}"] - x[f"C_H2_mem_{i_node}"]) / (Hmem / n_mem)
-    #         J_H2_acl_mem = -D_H2 * (x[f"C_H2_mem_1"] - x['C_H2_acl']) / (Hmem / n_mem + Hcl/2)
-    #     elif i_node == n_mem - 1:
-    #         J_H2_mem[i_node] = -D_H2 * (0 - x[f"C_H2_mem_{n_mem}"]) / (Hmem / n_mem)
-    #         J_O2_mem_ccl = -D_O2 * (x['C_O2_ccl'] - x[f"C_O2_mem_{n_mem}"]) / (Hmem / n_mem + Hcl/2)
-    #         J_O2_mem[i_node] = -D_O2 * (x[f"C_O2_mem_{i_node + 1}"] - x[f"C_O2_mem_{i_node}"]) / (Hmem / n_mem)
-
-    #     else:
-    #         J_O2_mem[i_node] = -D_O2 * (x[f"C_O2_mem_{i_node + 1}"] - x[f"C_O2_mem_{i_node}"]) / (Hmem / n_mem)
-    #         J_H2_mem[i_node] = -D_H2 * (x[f"C_H2_mem_{i_node + 1}"] - x[f"C_H2_mem_{i_node}"]) / (Hmem / n_mem)
     # Platinum ion dynamic
     J_Pt2_mem = np.zeros(n_mem + 1).tolist()
     # J_Pt2_mem[0] = D_Pt2 * (x["C_Pt2_mem_1"] - c_Pt2_AMI) * epsilon_cm **1.5 / (Hmem / n_mem + Hcl)
@@ -290,15 +273,91 @@ def calculate_flows(t, x ,operating_inputs, parameters, Pagc, Pcgc, Pacl,Pagdl, 
                 'Jl_cgdl_cgdl': Jl_cgdl_cgdl,  'Jl_ccl_cgdl':Jl_ccl_cgdl,
                 'J_lambda_mem_acl': J_lambda_mem_acl, 'J_lambda_mem_ccl': J_lambda_mem_ccl, 'J_lambda_mem': J_lambda_mem,
                 'J_H2_agc_agdl': J_H2_agc_agdl, 'J_H2_agdl_agdl': J_H2_agdl_agdl, 'J_H2_agdl_acl': J_H2_agdl_acl,
-                'J_H2_acl_mem': J_H2_acl_mem, 'J_H2_mem': J_H2_mem,
                 'J_O2_ccl_cgdl': J_O2_ccl_cgdl, 'J_O2_cgdl_cgdl': J_O2_cgdl_cgdl, 'J_O2_cgdl_cgc': J_O2_cgdl_cgc,
-                'J_O2_mem_ccl': J_O2_mem_ccl, 'J_O2_mem': J_O2_mem,
+                **crossover,
                 'J_Pt2_mem': J_Pt2_mem,
                 'S_sorp_acl': S_sorp_acl, 'S_sorp_ccl': S_sorp_ccl, 'Sp_acl': Sp_acl, 'Sp_ccl': Sp_ccl,
                 'S_H2_acl': S_H2_acl, 'S_O2_ccl': S_O2_ccl, 
                 'Sv_cgdl': Sv_cgdl, 'Sv_agdl': Sv_agdl, 'Sv_ccl': Sv_ccl, 'Sv_acl': Sv_acl,
                 'Sl_agdl': Sl_agdl,'Sl_cgdl': Sl_cgdl, "Sl_acl":Sl_acl, "Sl_ccl":Sl_ccl,
                 'Wrd': Wrd}
+
+
+def node_temperatures(x, parameters, Tfc):
+    """Local temperatures (K) of the 1-D nodes: (Tagdl list, Tacl, Tmem list, Tccl, Tcgdl list).
+
+    PEMFC with parameters["thermal"] carries them as states (Tagdl_i, Tacl, Tmem_i, Tccl, Tcgdl_i,
+    as PEMFC_dyn); the isothermal model has no such states and every node sits at Tfc.
+    """
+    n_gdl, n_mem = parameters["n_gdl"], parameters["n_mem"]
+    if "Tacl" not in x:
+        return [Tfc] * n_gdl, Tfc, [Tfc] * n_mem, Tfc, [Tfc] * n_gdl
+    return ([x[f"Tagdl_{i}"] for i in range(1, n_gdl + 1)], x["Tacl"],
+            [x[f"Tmem_{i}"] for i in range(1, n_mem + 1)], x["Tccl"],
+            [x[f"Tcgdl_{i}"] for i in range(1, n_gdl + 1)])
+
+
+def heat_flows(x, parameters, iload, Tfc, Rmem, Rccl, Racl):
+    """Heat fluxes (W.m-2) and heat sources of the thermal model, same equations as PEMFC_dyn.dxdt.
+
+    Conduction J_T = k (T_left - T_right)/distance, the gas channels being held at Tfc.
+    Sources: reversible heat of the HOR (ACL) and of the ORR minus HOR (CCL), and Joule heat R i^2
+    with the local proton resistances. Sorption and evaporation heat are not included (0, as PEMFC_dyn).
+    """
+    n_gdl, n_mem = parameters["n_gdl"], parameters["n_mem"]
+    Hgdl, Hgc, Hcl, Hmem = parameters["Hgdl"], parameters["Hgc"], parameters["Hcl"], parameters["Hmem"]
+    JT_ccl_cgdl = (k_CL+k_GDL)/2 * (x["Tccl"] - x["Tcgdl_1"]) / ((Hcl/2+Hgdl/n_gdl))
+    JT_agdl_acl = (k_CL+k_GDL)/2 * (x[f"Tagdl_{n_gdl}"] - x["Tacl"]) / ((Hgdl/n_gdl+Hcl/2))
+    JT_mem_ccl = (k_CL+k_PEM)/2 * (x[f"Tmem_{n_mem}"] - x["Tccl"]) / ((Hmem/n_mem+Hcl/2))
+    JT_acl_mem = (k_CL+k_PEM)/2 * (x["Tacl"] - x["Tmem_1"]) / ((Hmem/n_mem+Hcl/2))
+    JT_agc_agdl =  k_GDL * (Tfc - x["Tagdl_1"]) / (Hgdl/n_gdl + Hgc/2)
+    JT_cgdl_cgc = k_GDL * (x[f"Tcgdl_{n_gdl}"] - Tfc) / (Hgdl/n_gdl + Hgc/2)
+    JT_agdl = [k_GDL * (x[f"Tagdl_{i}"] - x[f"Tagdl_{i+1}"]) / (Hgdl/n_gdl) for i in range(1, n_gdl)]
+    JT_cgdl = [k_GDL * (x[f"Tcgdl_{i}"] - x[f"Tcgdl_{i+1}"]) / (Hgdl/n_gdl) for i in range(1, n_gdl)]
+    JT_mem = [k_PEM * (x[f"Tmem_{i}"] - x[f"Tmem_{i+1}"]) / (Hmem/n_mem) for i in range(1, n_mem)]
+    return {'JT_agc_agdl': JT_agc_agdl, 'JT_agdl': JT_agdl, 'JT_agdl_acl': JT_agdl_acl, 'JT_acl_mem': JT_acl_mem,
+            'JT_mem': JT_mem, 'JT_mem_ccl': JT_mem_ccl, 'JT_ccl_cgdl': JT_ccl_cgdl, 'JT_cgdl': JT_cgdl,
+            'JT_cgdl_cgc': JT_cgdl_cgc,
+            'Sr_acl': - deltaS_HOR * iload/(2*F)* x["Tacl"],
+            'Sr_ccl': - deltaS_OOR * iload/(4*F) * x["Tccl"] + deltaS_HOR * iload/(2*F)* x["Tccl"],
+            'Sre_acl': Racl * iload**2, 'Sre_ccl': Rccl * iload**2, 'Sre_mem': [R_i * iload**2 for R_i in Rmem]}
+
+
+def crossover_fluxes(x, T_mem, parameters):
+    """H2 and O2 crossover fluxes through the membrane (mol.m-2.s-1, x pointing from anode to cathode).
+
+    n_mem nodes of width dx = Hmem/n_mem and n_mem + 1 faces:
+        J_X_mem[0] = ACL/MEM face, J_X_mem[k] = node k -> node k+1, J_X_mem[n_mem] = MEM/CCL face.
+    Fick's law J = -D dC/dx with D = k R T (model.coefficients), C_X_mem being gas-equivalent concentrations.
+    H2 enters from the ACL gas and is burnt at the MEM/CCL face (C_H2_mem_ccl = 0);
+    O2 enters from the CCL gas and is burnt at the ACL/MEM face (C_O2_acl_mem = 0).
+    Face properties: mean lambda and T of the two neighbouring nodes; boundary faces use the boundary node.
+    T_mem lists the node temperatures (Tfc for the isothermal model).
+    """
+    n_mem, Hmem, Hcl = parameters["n_mem"], parameters["Hmem"], parameters["Hcl"]
+    dx = Hmem / n_mem
+    d_mem_cl = (dx + Hcl) / 2  # m, distance between the CL node and the first/last membrane node
+    lambda_face = [x['lambda_mem_1']] + [(x[f'lambda_mem_{i}'] + x[f'lambda_mem_{i + 1}']) / 2 for i in range(1, n_mem)] + [x[f'lambda_mem_{n_mem}']]
+    T_face = [T_mem[0]] + [(T_mem[i - 1] + T_mem[i]) / 2 for i in range(1, n_mem)] + [T_mem[-1]]
+    J_H2_mem = [0] * (n_mem + 1)
+    J_O2_mem = [0] * (n_mem + 1)
+    for i in range(n_mem + 1):
+        D_H2, D_O2 = D_H2_mem(lambda_face[i], T_face[i]), D_O2_mem(lambda_face[i], T_face[i])
+        if i == 0:
+            J_H2_mem[0] = -D_H2 * (x['C_H2_mem_1'] - x['C_H2_acl']) / d_mem_cl
+            J_O2_mem[0] = -D_O2 * (x['C_O2_mem_1'] - C_O2_acl_mem) / (dx / 2)
+        elif i == n_mem:
+            J_H2_mem[n_mem] = -D_H2 * (C_H2_mem_ccl - x[f'C_H2_mem_{n_mem}']) / (dx / 2)
+            J_O2_mem[n_mem] = -D_O2 * (x['C_O2_ccl'] - x[f'C_O2_mem_{n_mem}']) / d_mem_cl
+        else:
+            J_H2_mem[i] = -D_H2 * (x[f'C_H2_mem_{i + 1}'] - x[f'C_H2_mem_{i}']) / dx
+            J_O2_mem[i] = -D_O2 * (x[f'C_O2_mem_{i + 1}'] - x[f'C_O2_mem_{i}']) / dx
+    return {'J_H2_mem': J_H2_mem, 'J_O2_mem': J_O2_mem,
+            'J_H2_acl_mem': J_H2_mem[0],      # H2 leaving the ACL into the membrane (> 0)
+            'J_H2_mem_ccl': J_H2_mem[n_mem],  # H2 reaching the MEM/CCL face, burnt there (> 0)
+            'J_O2_acl_mem': J_O2_mem[0],      # O2 reaching the ACL/MEM face, burnt there (< 0)
+            'J_O2_mem_ccl': J_O2_mem[n_mem],  # O2 leaving the CCL into the membrane (< 0)
+            'i_n': 2 * F * (J_H2_mem[n_mem] - 2 * J_O2_mem[0])}  # A.m-2, equivalent crossover current (not fed to Ucell)
 
 
 def Cproton_CCL(lambda_w, EW=1.1, rho_mem=0.002):

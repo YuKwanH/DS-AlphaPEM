@@ -202,16 +202,18 @@ def _resolve_transient_model(model_variant, aux_system):
     return a note for the status strip:
 
       Dual-scale + With aux   -> Dynamic   (PEMFC has no BoP code)
-      Dynamic    + Without aux-> Dual-scale (PEMFC_dyn requires BoP;
-                                             else solver hits a
-                                             (181,) vs (218,) broadcast)
+      Dynamic    + Without aux-> PEMFC with its thermal model on
+                                (parameters["thermal"]: the T states and heat
+                                equations of PEMFC_dyn); PEMFC_dyn itself
+                                requires BoP
       Dual-scale + Without aux-> Dual-scale (no change)
       Dynamic    + With aux   -> Dynamic    (no change)
     """
     if aux_system and model_variant == "Dual-scale":
         return "Dynamic", "auto-promoted: PEMFC has no BoP, ran PEMFC_dyn instead"
     if (not aux_system) and model_variant == "Dynamic":
-        return "Dual-scale", "auto-demoted: PEMFC_dyn requires BoP, ran PEMFC instead"
+        return "Dual-scale", ("Dynamic without auxiliary: PEMFC_dyn requires BoP, ran PEMFC "
+                              "with the PEMFC_dyn thermal model (node temperatures) instead")
     return model_variant, None
 
 
@@ -227,6 +229,8 @@ def run(params, op_inputs, model_variant, profile_func, t_span,
 
     requested_variant = model_variant
     model_variant, route_note = _resolve_transient_model(model_variant, aux_system)
+    # Dynamic without auxiliary runs PEMFC with the thermal states of PEMFC_dyn
+    thermal = requested_variant == "Dynamic" and model_variant == "Dual-scale"
 
     # Defensive copies — never mutate the dicts owned by st.session_state.
     params    = dict(params)
@@ -235,6 +239,7 @@ def run(params, op_inputs, model_variant, profile_func, t_span,
     # Auxiliary-system toggle: the model's dxdt reads parameters["aux_system"]
     # and includes (True) or skips (False) the compressor / BoP equations.
     params["aux_system"] = bool(aux_system)
+    params["thermal"] = thermal
 
     t0 = time.perf_counter()
     if model_variant == "Dynamic":
@@ -291,7 +296,9 @@ def run(params, op_inputs, model_variant, profile_func, t_span,
                f"to LSODA. Solver message: {msg}").strip()
     aux_label = "aux: on" if aux_system else "aux: off"
     label = model_variant
-    if model_variant != requested_variant:
+    if thermal:
+        label = "Dynamic (PEMFC + thermal model, no BoP)"
+    elif model_variant != requested_variant:
         label = f"{model_variant} (from {requested_variant})"
     status = {
         "runtime_s": runtime,

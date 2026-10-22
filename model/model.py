@@ -34,6 +34,11 @@ class PEMFC:
             * Degradation (112) :
                 C_Pt2_ccl, C_Pt2_mem_{1..n_mem}, delta_mem,
                 S_N_ccl_{1..n_group_pt}, theta_ccl_{1..n_group_pt}
+            * Temperatures (2 * n_gdl + n_mem + 2 = 32), only with parameters["thermal"] = True :
+                Tagdl_{1..n_gdl}, Tacl, Tmem_{1..n_mem}, Tccl, Tcgdl_{1..n_gdl}
+              (heat equations of PEMFC_dyn; the transport properties, proton resistances and Ueq
+              then use the local temperatures instead of Tfc). The Dynamic variant without
+              auxiliary system runs this model with the thermal states on.
 
         The ``aux_system`` flag in ``parameters`` controls whether the
         compressor / BoP equations are integrated (True, default) or
@@ -72,6 +77,13 @@ class PEMFC:
                 index_theta_ccl = self.variable_names.index('theta_ccl')
                 self.variable_names.pop(index_theta_ccl)
                 self.variable_names[index_theta_ccl:index_theta_ccl] = [f'theta_ccl_{i}' for i in range(1, len(self.parameters['r_m']) + 1)]
+                # Thermal model (parameters["thermal"]): node temperatures as in PEMFC_dyn, appended after the other states
+                self.thermal = bool(self.parameters.get("thermal", False))
+                if self.thermal:
+                        n_gdl, n_mem = self.parameters['n_gdl'], self.parameters['n_mem']
+                        self.variable_names += ([f'Tagdl_{i}' for i in range(1, n_gdl + 1)] + ['Tacl'] +
+                                                [f'Tmem_{i}' for i in range(1, n_mem + 1)] + ['Tccl'] +
+                                                [f'Tcgdl_{i}' for i in range(1, n_gdl + 1)])
 
                 # Initialization of the variables dictionary to store the results of the simulation
                 self.variables = {key: [] for key in self.variable_names}
@@ -113,6 +125,11 @@ class PEMFC:
                         dxdt_CP(dif, **states, **all_inst_values)
                 dxdt_N2(dif, **all_inst_values)
                 dxdt_PRD(dif=dif, **states, **all_inst_values)
+                if self.thermal:
+                        Rmem, Rccl, Racl = Rproton(states, self.parameters, self.operating_inputs)
+                        heat = heat_flows(states, self.parameters, self.operating_inputs["current_density"](t),
+                                          self.operating_inputs["Tfc"], Rmem, Rccl, Racl)
+                        dxdt_T(dif, **self.parameters, **heat)
 
                 return np.fromiter(dif.values(), dtype=float, count=self._n_states)
 
@@ -1081,12 +1098,19 @@ class PEMFC_dyn:
                              (epsilon_mean / K0(epsilon_mean, epsilon_c, epsilon_gdl)) ** 0.5 *(s_ccl_cgdl ** e) * (1.417 - 4.24 * s_ccl_cgdl + 3.789 * s_ccl_cgdl ** 2) * \
                              (x['s_cgdl_1'] - x['s_ccl']) / (Hgdl / n_gdl + Hcl)
         
+        # __________________________________________Gas crossover (mol.m-2.s-1)___________________________________________
+        crossover = crossover_fluxes(x, [x[f"Tmem_{i}"] for i in range(1, n_mem + 1)], self.parameters)
+        J_H2_mem, J_O2_mem = crossover['J_H2_mem'], crossover['J_O2_mem']
+        J_H2_acl_mem, J_H2_mem_ccl = crossover['J_H2_acl_mem'], crossover['J_H2_mem_ccl']
+        J_O2_acl_mem, J_O2_mem_ccl = crossover['J_O2_acl_mem'], crossover['J_O2_mem_ccl']
+
         # __________________________________________H2 and O2 flows (mol.m-2.s-1)___________________________________________
-        # Hydrogen and oxygen consumption
+        # Hydrogen and oxygen consumption, Faraday plus recombination of the crossed gases on Pt
+        # (O2 + 2 H2 -> 2 H2O in the ACL, H2 + 1/2 O2 -> H2O in the CCL; J_O2_acl_mem <= 0)
         # Anode side
-        S_H2_acl = - iload / (2 * F * Hcl) 
+        S_H2_acl = - iload / (2 * F * Hcl) + 2 * J_O2_acl_mem / Hcl
         # Cathode side
-        S_O2_ccl = - iload / (4 * F * Hcl) 
+        S_O2_ccl = - iload / (4 * F * Hcl) - J_H2_mem_ccl / (2 * Hcl)
         # Conductive-convective H2 and O2 flows
         #   Anode side
         J_H2_agc_agdl = h_a(Pagc, Tfc, Wgc, Hgc) * (x['C_H2_agc'] - x['C_H2_agdl_1'])
@@ -1112,9 +1136,9 @@ class PEMFC_dyn:
         # __________________________________________Water generated (mol.m-3.s-1)___________________________________________
         # Water produced in the membrane at the CL through the chemical reaction and crossover
         #   Anode side
-        Sp_acl = 0
+        Sp_acl = - 2 * J_O2_acl_mem / Hcl
         #   Cathode side
-        Sp_ccl = iload / (2 * F * Hcl)
+        Sp_ccl = iload / (2 * F * Hcl) + J_H2_mem_ccl / Hcl
 
         # Water sorption in the CL:
         #   Anode side
@@ -1141,30 +1165,6 @@ class PEMFC_dyn:
         #   Cathode side
         Sv_cgdl = [-S for S in Sl_cgdl]
         Sv_ccl = - Sl_ccl
-        J_O2_mem = np.zeros(n_mem).tolist()
-        J_H2_mem = np.zeros(n_mem).tolist()
-        J_O2_mem_ccl = 0
-        J_H2_acl_mem = 0
-
-        for i_node in np.arange(1, n_mem):
-            x_H2O = (x[f"lambda_mem_{i_node+1}"] * R_H2O) / (R_iono + x[f"lambda_mem_{i_node+1}"] * R_H2O)
-            k_H2_mem = (0.29 + 2.2 * x_H2O) * 1e-15 * np.exp(2.1e4 / R * (1 / 303 - 1 / x[f"Tmem_{i_node+1}"]))
-            k_O2_mem = (0.11 + 1.9 * x_H2O) * 1e-15 * np.exp(2.2e4 / R * (1 / 303 - 1 / x[f"Tmem_{i_node+1}"]))
-            D_H2 = 2.584 * np.exp(170 / x[f"Tmem_{i_node+1}"]) * k_O2_mem
-            D_O2 = 1348 * np.exp(-666 / x[f"Tmem_{i_node+1}"]) * k_H2_mem
-            if i_node == 1:
-                J_O2_mem[0] = -D_O2 * (x["C_O2_mem_1"] - 0) / (Hmem / n_mem)
-                J_H2_mem[0] = -D_H2 * (x[f"C_H2_mem_1"] - 0) / (Hmem / n_mem)-D_H2 * (x[f"C_H2_mem_{i_node + 1}"] - x[f"C_H2_mem_{i_node}"]) / (Hmem / n_mem)
-                J_H2_acl_mem = -D_H2 * (x[f"C_H2_mem_1"] - x['C_H2_acl']) / (Hmem / n_mem + Hcl/2)
-            elif i_node == n_mem - 1:
-                J_H2_mem[i_node] = -D_H2 * (0 - x[f"C_H2_mem_{n_mem}"]) / (Hmem / n_mem)
-                J_O2_mem_ccl = -D_O2 * (x['C_O2_ccl'] - x[f"C_O2_mem_{n_mem}"]) / (Hmem / n_mem + Hcl/2)
-                J_O2_mem[i_node] = -D_O2 * (x[f"C_O2_mem_{i_node + 1}"] - x[f"C_O2_mem_{i_node}"]) / (Hmem / n_mem)
-
-            else:
-                J_O2_mem[i_node] = -D_O2 * (x[f"C_O2_mem_{i_node + 1}"] - x[f"C_O2_mem_{i_node}"]) / (Hmem / n_mem)
-                J_H2_mem[i_node] = -D_H2 * (x[f"C_H2_mem_{i_node + 1}"] - x[f"C_H2_mem_{i_node}"]) / (Hmem / n_mem)
-
         JT_ccl_cgdl = (k_CL+k_GDL)/2 * (x["Tccl"] - x["Tcgdl_1"]) / ((Hcl/2+Hgdl/n_gdl))
         JT_agdl_acl = (k_CL+k_GDL)/2 * (x[f"Tagdl_{n_gdl}"] - x["Tacl"]) / ((Hgdl/n_gdl+Hcl/2))
         JT_mem_ccl = (k_CL+k_PEM)/2 * (x[f"Tmem_{n_mem}"] - x["Tccl"]) / ((Hmem/n_mem+Hcl/2))
@@ -1271,7 +1271,7 @@ class PEMFC_dyn:
         # ACL dynamics
         dif['ds_acl / dt']       = (Jl_agdl_acl /  (Hgdl / n_gdl) + M_H2O * Sl_acl) / (rho_H2O(x["Tacl"]) * epsilon_cl)
         dif['dC_v_acl / dt']   = (Jv_agdl_acl / (Hgdl / n_gdl + Hcl/2) - S_sorp_acl + Sv_acl + Sp_acl) / (epsilon_cl)
-        dif['dC_H2_acl / dt'] = ((J_H2_agdl_acl - J_H2_acl_mem) / (Hgdl / n_gdl + Hcl/2) + S_H2_acl) / (epsilon_cl)
+        dif['dC_H2_acl / dt'] = (J_H2_agdl_acl / (Hgdl / n_gdl + Hcl/2) - J_H2_acl_mem / Hcl + S_H2_acl) / (epsilon_cl)
         dif["dTacl / dt"]        = ((JT_agdl_acl - JT_acl_mem) / (Hgdl / n_gdl + Hcl/2) + Sr_acl + Sre_acl + Sad_acl + Sec_acl)/(Cp_cl * rho_cl)
 
         # MEM dynamics 
@@ -1281,6 +1281,10 @@ class PEMFC_dyn:
         for i in range(2, n_mem):
             dif[f'dlambda_mem_{i} / dt'] = M_eq / rho_mem * (J_lambda_mem[i-2] - J_lambda_mem[i-1]) / (Hmem/n_mem)
         dif[f'dlambda_mem_{n_mem} / dt'] = M_eq / rho_mem * (J_lambda_mem[-1] - J_lambda_mem_ccl) / (Hmem/n_mem + Hcl/5)
+        # Crossover of O2 and H2 in the membrane: dC/dt = (J_left - J_right)/dx for every node
+        for i in range(1, n_mem + 1):
+            dif[f'dC_H2_mem_{i} / dt'] = (J_H2_mem[i - 1] - J_H2_mem[i]) / (Hmem / n_mem)
+            dif[f'dC_O2_mem_{i} / dt'] = (J_O2_mem[i - 1] - J_O2_mem[i]) / (Hmem / n_mem)
         for i in range(n_mem):
                 if i == 0:
                     dif[f"dTmem_{i+1} / dt"] = ((JT_acl_mem - JT_mem[0]) / (Hmem/n_mem + Hcl/3) + Sre_mem[i])/(Cp_mem * rho_mem)
@@ -1293,7 +1297,7 @@ class PEMFC_dyn:
         dif["dTccl / dt"] = ((JT_mem_ccl - JT_ccl_cgdl ) / Hcl + Sr_ccl + Sre_ccl + Sad_ccl + Sec_ccl)/(Cp_cl * rho_cl)
         dif['ds_ccl / dt'] = (- Jl_ccl_cgdl /  (Hgdl / n_gdl + Hcl/2) + M_H2O * Sl_ccl) / (rho_H2O(x["Tccl"]) * epsilon_cl)
         dif['dC_v_ccl / dt'] = (- Jv_ccl_cgdl /  (Hgdl / n_gdl + Hcl/2) - S_sorp_ccl + Sv_ccl) / (epsilon_cl * (1 - x['s_ccl']))
-        dif['dC_O2_ccl / dt'] = ((J_O2_mem_ccl- J_O2_ccl_cgdl) /  (Hgdl / n_gdl + Hcl/2)  + S_O2_ccl) / (epsilon_cl * (1 - x['s_ccl']))
+        dif['dC_O2_ccl / dt'] = (- J_O2_ccl_cgdl /  (Hgdl / n_gdl + Hcl/2) + J_O2_mem_ccl / Hcl + S_O2_ccl) / (epsilon_cl * (1 - x['s_ccl']))
 
         # CGDL dynamics
         for i in range(n_gdl):
@@ -1636,30 +1640,6 @@ class PEMFC_dyn:
         #   Cathode side
         Sv_cgdl = [-S for S in Sl_cgdl]
         Sv_ccl = - Sl_ccl
-        J_O2_mem = np.zeros(n_mem).tolist()
-        J_H2_mem = np.zeros(n_mem).tolist()
-        J_O2_mem_ccl = 0
-        J_H2_acl_mem = 0
-
-        for i_node in np.arange(1, n_mem):
-            x_H2O = (x[f"lambda_mem_{i_node+1}"] * R_H2O) / (R_iono + x[f"lambda_mem_{i_node+1}"] * R_H2O)
-            k_H2_mem = (0.29 + 2.2 * x_H2O) * 1e-15 * np.exp(2.1e4 / R * (1 / 303 - 1 / x[f"Tmem_{i_node+1}"]))
-            k_O2_mem = (0.11 + 1.9 * x_H2O) * 1e-15 * np.exp(2.2e4 / R * (1 / 303 - 1 / x[f"Tmem_{i_node+1}"]))
-            D_H2 = 2.584 * np.exp(170 / x[f"Tmem_{i_node+1}"]) * k_O2_mem
-            D_O2 = 1348 * np.exp(-666 / x[f"Tmem_{i_node+1}"]) * k_H2_mem
-            if i_node == 1:
-                J_O2_mem[0] = -D_O2 * (x["C_O2_mem_1"] - 0) / (Hmem / n_mem)
-                J_H2_mem[0] = -D_H2 * (x[f"C_H2_mem_1"] - 0) / (Hmem / n_mem)-D_H2 * (x[f"C_H2_mem_{i_node + 1}"] - x[f"C_H2_mem_{i_node}"]) / (Hmem / n_mem)
-                J_H2_acl_mem = -D_H2 * (x[f"C_H2_mem_1"] - x['C_H2_acl']) / (Hmem / n_mem + Hcl/2)
-            elif i_node == n_mem - 1:
-                J_H2_mem[i_node] = -D_H2 * (0 - x[f"C_H2_mem_{n_mem}"]) / (Hmem / n_mem)
-                J_O2_mem_ccl = -D_O2 * (x['C_O2_ccl'] - x[f"C_O2_mem_{n_mem}"]) / (Hmem / n_mem + Hcl/2)
-                J_O2_mem[i_node] = -D_O2 * (x[f"C_O2_mem_{i_node + 1}"] - x[f"C_O2_mem_{i_node}"]) / (Hmem / n_mem)
-
-            else:
-                J_O2_mem[i_node] = -D_O2 * (x[f"C_O2_mem_{i_node + 1}"] - x[f"C_O2_mem_{i_node}"]) / (Hmem / n_mem)
-                J_H2_mem[i_node] = -D_H2 * (x[f"C_H2_mem_{i_node + 1}"] - x[f"C_H2_mem_{i_node}"]) / (Hmem / n_mem)
-
         JT_ccl_cgdl = (k_CL+k_GDL)/2 * (x["Tccl"] - x["Tcgdl_1"]) / ((Hcl/2+Hgdl/n_gdl))
         JT_agdl_acl = (k_CL+k_GDL)/2 * (x[f"Tagdl_{n_gdl}"] - x["Tacl"]) / ((Hgdl/n_gdl+Hcl/2))
         JT_mem_ccl = (k_CL+k_PEM)/2 * (x[f"Tmem_{n_mem}"] - x["Tccl"]) / ((Hmem/n_mem+Hcl/2))

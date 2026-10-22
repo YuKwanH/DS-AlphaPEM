@@ -96,6 +96,9 @@ def init_x(operating_inputs, parameters):
                 [2] + [lambda_mem_ini] * n_mem + [lambda_mem_ini] + 
                 [Wcp, Wa_inj, Wc_inj] + C_Pt_mem_init +
                 [C_Pt2_ccl, Hmem] + prd_init.tolist() + theta_CCL.tolist())
+    # Thermal model (parameters["thermal"]): Tagdl*n_gdl, Tacl, Tmem*n_mem, Tccl, Tcgdl*n_gdl start at Tfc
+    if parameters.get("thermal", False):
+        x0 = x0 + [operating_inputs['Tfc']] * (2 * n_gdl + n_mem + 2)
     return x0
 
 

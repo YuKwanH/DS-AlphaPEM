@@ -30,7 +30,7 @@ def dxdt_AGDL(dif, x, Hgdl, Hgc, Hcl,epsilon_gdl,rho_H2O, n_gdl, Jl_agdl_agdl,Jl
 def dxdt_ACL(dif,x, epsilon_cl,  Hcl, Hgdl, rho_H2O, n_gdl, Jv_agdl_acl, Jl_agdl_acl,J_H2_agdl_acl, J_H2_acl_mem, 
                         Sp_acl,  Sl_acl, S_sorp_acl, S_H2_acl, Tfc, **kwargs):
     dif['dC_v_acl / dt']   = (Jv_agdl_acl / (Hgdl / n_gdl + Hcl/2) - S_sorp_acl + Sp_acl - Sl_acl) / (epsilon_cl * (1 - x['s_acl']))
-    dif['dC_H2_acl / dt'] = ((J_H2_agdl_acl) / (Hgdl / n_gdl + Hcl/2) + S_H2_acl) / (epsilon_cl * (1 - x['s_acl']))
+    dif['dC_H2_acl / dt'] = ((J_H2_agdl_acl) / (Hgdl / n_gdl + Hcl/2) - J_H2_acl_mem / Hcl + S_H2_acl) / (epsilon_cl * (1 - x['s_acl']))
     dif['ds_acl / dt']         =   (Jl_agdl_acl / (Hgdl / n_gdl + Hcl/2) + M_H2O * Sl_acl)/ (rho_H2O * epsilon_cl)
 
 
@@ -59,16 +59,16 @@ def dxdt_CGDL(dif, x,  epsilon_gdl, n_gdl, rho_H2O, Hgdl, Hgc, Hcl, Tfc,
             dif[f'ds_cgdl_{i+1} / dt'] = ((Jl_cgdl_cgdl[i - 1] - Jl_cgdl_cgdl[i]) / (Hgdl / n_gdl) + M_H2O * Sl_cgdl[i+1]) / (rho_H2O* epsilon_gdl)
 
 
-def dxdt_CCL(dif,x, Jv_ccl_cgdl,  J_O2_ccl_cgdl, Jl_ccl_cgdl, S_sorp_ccl,  S_O2_ccl, Sl_ccl,
+def dxdt_CCL(dif,x, Jv_ccl_cgdl,  J_O2_ccl_cgdl, Jl_ccl_cgdl, S_sorp_ccl,  S_O2_ccl, Sl_ccl, J_O2_mem_ccl,
                          Hcl, Hgdl, n_gdl, epsilon_cl,  Tfc, rho_H2O, **kwargs):
     
     dif['ds_ccl / dt'] = (- Jl_ccl_cgdl /  (Hgdl / n_gdl + Hcl/2) + M_H2O * Sl_ccl) / (rho_H2O * epsilon_cl)
     dif['dC_v_ccl / dt'] = (- Jv_ccl_cgdl /  (Hgdl / n_gdl + Hcl/2) - S_sorp_ccl - Sl_ccl) /(epsilon_cl * (1 - x['s_ccl']))
-    dif['dC_O2_ccl / dt'] = ((- J_O2_ccl_cgdl) /  (Hgdl / n_gdl + Hcl/2)  + S_O2_ccl) /(epsilon_cl * (1 - x['s_ccl']))
+    dif['dC_O2_ccl / dt'] = ((- J_O2_ccl_cgdl) /  (Hgdl / n_gdl + Hcl/2) + J_O2_mem_ccl / Hcl + S_O2_ccl) /(epsilon_cl * (1 - x['s_ccl']))
 
 
 def dxdt_MEM(dif, x, epsilon_mc, Hcl, Hmem,n_mem, Ucell, Tfc,
-                         J_lambda_mem_acl, J_lambda_mem_ccl, J_O2_mem, J_H2_mem, J_lambda_mem, J_O2_mem_ccl, J_H2_acl_mem,
+                         J_lambda_mem_acl, J_lambda_mem_ccl, J_O2_mem, J_H2_mem, J_lambda_mem,
                          Sp_ccl, S_sorp_acl, S_sorp_ccl, **kwargs):
 
     # MEM dynamics 
@@ -78,17 +78,40 @@ def dxdt_MEM(dif, x, epsilon_mc, Hcl, Hmem,n_mem, Ucell, Tfc,
     for i in range(2, n_mem):
         dif[f'dlambda_mem_{i} / dt'] = M_eq / rho_mem * (J_lambda_mem[i-2] - J_lambda_mem[i-1]) / (Hmem/n_mem)
     dif[f'dlambda_mem_{n_mem} / dt'] = M_eq / rho_mem * (J_lambda_mem[-1] - J_lambda_mem_ccl) / (Hmem/n_mem + Hcl)
-    # #Crossover fluxes of O2 and H2 in the membrane
-    dif[f'dC_H2_mem_{1} / dt'] = (J_H2_acl_mem - J_H2_mem[0]) / (Hmem / n_mem+Hcl)
-    dif[f'dC_O2_mem_{n_mem} / dt'] = (J_O2_mem[n_mem - 1] - J_O2_mem_ccl) / (Hmem / n_mem+ Hcl)
-    for i in np.arange(2, n_mem):
+    # Crossover of O2 and H2 in the membrane: dC/dt = (J_left - J_right)/dx for every node,
+    # J_X_mem holding the n_mem + 1 face fluxes (model.inst_values.crossover_fluxes)
+    for i in range(1, n_mem + 1):
+        dif[f'dC_H2_mem_{i} / dt'] = (J_H2_mem[i - 1] - J_H2_mem[i]) / (Hmem / n_mem)
         dif[f'dC_O2_mem_{i} / dt'] = (J_O2_mem[i - 1] - J_O2_mem[i]) / (Hmem / n_mem)
-        dif[f'dC_H2_mem_{i} / dt'] = (J_H2_mem[i - 1] - J_H2_mem[i]) / (Hmem / n_mem) # + S_Pt2_mem[i - 1]
-    #     dif[f'dC_Pt2_mem_{i} / dt'] = 0 #((J_Pt2_mem[i-1] - J_Pt2_mem[i]) / (Hmem / n_mem)) / (1 - epsilon_mc)  # + S_Pt2_mem[i - 1]
-    # dif[f'dC_H2_mem_{n_mem} / dt'] = (J_H2_mem[- 1] - 0) / (Hmem / n_mem)
     # Thickness degradation
     P_O2_ccl = x[f"C_O2_ccl"] * R * Tfc
     dif['ddelta_mem / dt'] = -20.8 / (0.82 * 1980e3) * flourideReleaseRate(MT=Hmem, U=Ucell, Tmem=Tfc, PO2_ca=P_O2_ccl, Hmem_init=1.2e-5)
+
+
+def dxdt_T(dif, Hgdl, Hgc, Hcl, Hmem, n_gdl, n_mem,
+           JT_agc_agdl, JT_agdl, JT_agdl_acl, JT_acl_mem, JT_mem, JT_mem_ccl, JT_ccl_cgdl, JT_cgdl, JT_cgdl_cgc,
+           Sr_acl, Sr_ccl, Sre_acl, Sre_ccl, Sre_mem, **kwargs):
+    # Temperatures of the 1-D nodes, same equations as PEMFC_dyn.dxdt (heat fluxes: model.inst_values.heat_flows).
+    # Sorption and evaporation heat are not included (0 in PEMFC_dyn).
+    #   AGDL
+    dif["dTagdl_1 / dt"] = ((JT_agc_agdl - JT_agdl[0]) / (Hgdl/n_gdl + Hgc/2)) / (Cp_gdl * rho_gdl)
+    for i in range(1, n_gdl - 1):
+        dif[f"dTagdl_{i+1} / dt"] = ((JT_agdl[i-1] - JT_agdl[i]) / (Hgdl/n_gdl)) / (Cp_gdl * rho_gdl)
+    dif[f"dTagdl_{n_gdl} / dt"] = ((JT_agdl[n_gdl-2] - JT_agdl_acl) / (Hgdl/n_gdl + Hcl)) / (Cp_gdl * rho_gdl)
+    #   ACL
+    dif["dTacl / dt"] = ((JT_agdl_acl - JT_acl_mem) / (Hgdl / n_gdl + Hcl/2) + Sr_acl + Sre_acl) / (Cp_cl * rho_cl)
+    #   MEM
+    dif["dTmem_1 / dt"] = ((JT_acl_mem - JT_mem[0]) / (Hmem/n_mem + Hcl/3) + Sre_mem[0]) / (Cp_mem * rho_mem)
+    for i in range(1, n_mem - 1):
+        dif[f"dTmem_{i+1} / dt"] = ((JT_mem[i-1] - JT_mem[i]) / (Hmem/n_mem) + Sre_mem[i]) / (Cp_mem * rho_mem)
+    dif[f"dTmem_{n_mem} / dt"] = ((JT_mem[n_mem-2] - JT_mem_ccl) / (Hmem/n_mem + Hcl/3) + Sre_mem[n_mem-1]) / (Cp_mem * rho_mem)
+    #   CCL
+    dif["dTccl / dt"] = ((JT_mem_ccl - JT_ccl_cgdl) / Hcl + Sr_ccl + Sre_ccl) / (Cp_cl * rho_cl)
+    #   CGDL
+    dif["dTcgdl_1 / dt"] = ((JT_ccl_cgdl - JT_cgdl[0]) / (Hgdl/n_gdl + Hcl/2)) / (Cp_gdl * rho_gdl)
+    for i in range(1, n_gdl - 1):
+        dif[f"dTcgdl_{i+1} / dt"] = ((JT_cgdl[i-1] - JT_cgdl[i]) / (Hgdl/n_gdl)) / (Cp_gdl * rho_gdl)
+    dif[f"dTcgdl_{n_gdl} / dt"] = ((JT_cgdl[n_gdl-2] - JT_cgdl_cgc) / (Hgdl/n_gdl + Hgc/2)) / (Cp_gdl * rho_gdl)
 
 
 def dxdt_U(dif, i_fc, C_O2_ccl, eta_c, Hcl, i0_c_ref, kappa_c, C_scl, f_drop, ECSA, Tfc, **kwargs):
@@ -161,5 +184,3 @@ def dxdt_PRD(dif, Hmem, n_mem, epsilon_mc, M_Pt0,
     for i in range(0, len(r_m)):
         dif[f"dS_N_ccl_{i+1}"+' / dt'] = dfdt[i]
         dif[f"dtheta_ccl_{i+1}"+' / dt'] = dthetadt[i]
-
-        

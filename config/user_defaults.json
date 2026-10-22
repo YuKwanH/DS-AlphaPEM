@@ -63,28 +63,28 @@
   },
   "op_inputs": {
     "Tfc": 323.15,
-    "Pa_des": 130000.0,
-    "Pc_des": 130000.0,
+    "Pa_des": 150000.0,
+    "Pc_des": 150000.0,
     "Phi_a_des": 0.0,
-    "Phi_c_des": 0.0,
+    "Phi_c_des": 0.5,
     "Sa": 1.2,
-    "Sc": 2.5,
+    "Sc": 2.0,
     "Imin_aux": 10.0
   },
   "options": {
-    "model_variant": "Dual-scale",
+    "model_variant": "Dynamic",
     "aux_system": false,
     "profile_kind": "Step",
     "profile_cfg": {
       "step_tstart": 0.0,
-      "step_tend": 6.0,
-      "i_low": 1000.0,
-      "i_high": 14500.0,
-      "tau_switch": 1.5,
+      "step_tend": 120.0,
+      "i_low": 2000.0,
+      "i_high": 12000.0,
+      "tau_switch": 30.0,
       "t_switch": 1.0
     },
     "t_start": 0.0,
-    "t_end": 30000.0,
+    "t_end": 80.0,
     "max_step": 0.1,
     "method": "BDF"
   },

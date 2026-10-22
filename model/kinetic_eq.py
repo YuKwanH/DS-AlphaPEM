@@ -32,7 +32,8 @@ def fdrop(x, operating_inputs, parameters):
 def Rproton(variables, parameters, op):
 
     # Extraction of the operating inputs and the parameters
-    Tccl, Tacl = op['Tfc'], op['Tfc']
+    # Local temperatures when the model carries them (thermal model), Tfc otherwise
+    Tccl, Tacl = variables.get('Tccl', op['Tfc']), variables.get('Tacl', op['Tfc'])
     Hmem, Hcl, epsilon_mc, tau = parameters['Hmem'], parameters['Hcl'], parameters['epsilon_mc'], parameters['tau']
     lambda_ccl, lambda_acl = variables['lambda_ccl'], variables['lambda_acl']
 
@@ -40,7 +41,7 @@ def Rproton(variables, parameters, op):
     Rmem = []
     for i_mem in range(1, parameters['n_mem'] + 1):
         lambda_mem = variables["lambda_mem_" + str(i_mem)]
-        Tmem = op['Tfc']
+        Tmem = variables.get(f"Tmem_{i_mem}", op['Tfc'])
         # The proton resistance
         # The proton resistance at the membrane: Rmem
         if lambda_mem >= 1:
@@ -65,7 +66,7 @@ def Rproton(variables, parameters, op):
 
 def Ueq(variables, op):
     # Extraction of the variables
-    Tccl = op['Tfc']
+    Tccl = variables.get('Tccl', op['Tfc'])
     C_H2_acl, C_O2_ccl = variables['C_H2_acl'], variables['C_O2_ccl']
     return (E0 - 8.5e-4 * (Tccl - 298.15) + R * Tccl / (2 * F) * (np.log(R * Tccl * C_H2_acl / Pref) + 0.5 * np.log(R * Tccl * C_O2_ccl / Pref)))
 
@@ -89,7 +90,7 @@ def Ucell(t, variables, operating_inputs, parameters):
     """
 
     # Extraction of the variables
-    Tccl, C_O2_ccl = operating_inputs["Tfc"], variables['C_O2_ccl']
+    Tccl, C_O2_ccl = variables.get('Tccl', operating_inputs["Tfc"]), variables['C_O2_ccl']
     i_fc = operating_inputs['current_density'](t)
     f_drop = fdrop(variables, operating_inputs, parameters)
     Re, i0_c_ref, kappa_c = parameters['Re'], parameters['i0_c_ref'], parameters['kappa_c']
@@ -108,7 +109,7 @@ def Ucell(t, variables, operating_inputs, parameters):
 def eta_ccl(variables, operating_inputs, parameters):
 
     # Extraction of the variables
-    Tccl, C_O2_ccl = operating_inputs['Tfc'], variables['C_O2_ccl']
+    Tccl, C_O2_ccl = variables.get('Tccl', operating_inputs['Tfc']), variables['C_O2_ccl']
     i_fc = operating_inputs['current_density'](0)
     f_drop = fdrop(variables, operating_inputs, parameters)
     i0_c_ref, kappa_c = parameters['i0_c_ref'], parameters['kappa_c']

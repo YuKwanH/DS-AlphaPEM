@@ -13,7 +13,8 @@ the simulation page's routing exactly:
 * ``Dual-scale`` + aux=off -> ``PEMFC``     (transient-to-steady).
 * ``Dual-scale`` + aux=on  -> ``PEMFC_dyn`` (auto-promote; matches sim).
 * ``Dynamic``    + aux=on  -> ``PEMFC_dyn``.
-* ``Dynamic``    + aux=off -> ``PEMFC``     (auto-demote; matches sim).
+* ``Dynamic``    + aux=off -> ``PEMFC`` with the PEMFC_dyn thermal model
+  (``parameters["thermal"]``; matches sim).
 
 Transient evaluation runs ``solve_ivp`` at constant current for
 ``SETTLE_S_PEMFC`` / ``SETTLE_S_PEMFC_DYN`` seconds and takes the tail
@@ -96,12 +97,13 @@ FINAL_TIME_TOL_FRAC = 1e-3
 # Mirrors the simulation-page routing in gui/runner.py::_resolve_transient_model.
 # The auxiliary toggle (not the variant name) really selects the file:
 #   Dual-scale + with-aux -> PEMFC_dyn  (PEMFC has no BoP code)
-#   Dynamic    + no-aux   -> PEMFC      (PEMFC_dyn needs BoP)
+#   Dynamic    + no-aux   -> PEMFC_thermal (PEMFC with the PEMFC_dyn thermal model;
+#                                           PEMFC_dyn needs BoP)
 def resolve_transient_model(model_variant, aux_system):
     if aux_system and model_variant == "Dual-scale":
         return "PEMFC_dyn"
     if (not aux_system) and model_variant == "Dynamic":
-        return "PEMFC"
+        return "PEMFC_thermal"
     return "PEMFC_dyn" if model_variant == "Dynamic" else "PEMFC"
 
 
@@ -230,14 +232,14 @@ def _make_op_transient(cond):
 def _predict_polarization_transient(params, cond_key, i_meas_A, *, model_kind,
                                      method="BDF"):
     """Per measured current, integrate the transient model at constant load and
-    return the tail Ucell. ``model_kind`` is one of "PEMFC" / "PEMFC_dyn"; the
+    return the tail Ucell. ``model_kind`` is one of "PEMFC" / "PEMFC_thermal" / "PEMFC_dyn"; the
     ODE ``method`` is passed straight to ``scipy.integrate.solve_ivp`` and
     is NEVER auto-switched by this function (see the strict-fail policy).
     """
     cond  = parse_condition_key(cond_key)
     op0   = _make_op_transient(cond)
     Aact  = params.get("Aact", 31e-4)
-    settle_s = SETTLE_S_PEMFC if model_kind == "PEMFC" else SETTLE_S_PEMFC_DYN
+    settle_s = SETTLE_S_PEMFC if model_kind in ("PEMFC", "PEMFC_thermal") else SETTLE_S_PEMFC_DYN
 
     out = np.full(len(i_meas_A), np.nan, dtype=float)
     with warnings.catch_warnings():
@@ -248,11 +250,12 @@ def _predict_polarization_transient(params, cond_key, i_meas_A, *, model_kind,
             op["current_density"] = (lambda t, _i=i_density: _i)
             t_span = (0.0, settle_s)
             try:
-                if model_kind == "PEMFC":
-                    model = PEMFC(param=params, operating_inputs=op,
+                if model_kind in ("PEMFC", "PEMFC_thermal"):
+                    p_pemfc = dict(params); p_pemfc["thermal"] = model_kind == "PEMFC_thermal"
+                    model = PEMFC(param=p_pemfc, operating_inputs=op,
                                   variable_names=solver_variable_names,
                                   flux_names=solver_flux_names)
-                    y0 = init_x(op, params)
+                    y0 = init_x(op, p_pemfc)
                 else:
                     p_aux = dict(params); p_aux["aux_system"] = True
                     y0 = init_x_for("dynamic", op, p_aux)
@@ -298,7 +301,7 @@ def _predict_hfr_transient(params, cond_key, i_meas_A, *, model_kind,
     cond  = parse_condition_key(cond_key)
     op0   = _make_op_transient(cond)
     Aact  = params.get("Aact", 31e-4)
-    settle_s = SETTLE_S_PEMFC if model_kind == "PEMFC" else SETTLE_S_PEMFC_DYN
+    settle_s = SETTLE_S_PEMFC if model_kind in ("PEMFC", "PEMFC_thermal") else SETTLE_S_PEMFC_DYN
 
     out = np.full(len(i_meas_A), np.nan, dtype=float)
     with warnings.catch_warnings():
@@ -309,11 +312,12 @@ def _predict_hfr_transient(params, cond_key, i_meas_A, *, model_kind,
             op["current_density"] = (lambda t, _i=i_density: _i)
             t_span = (0.0, settle_s)
             try:
-                if model_kind == "PEMFC":
-                    model = PEMFC(param=params, operating_inputs=op,
+                if model_kind in ("PEMFC", "PEMFC_thermal"):
+                    p_pemfc = dict(params); p_pemfc["thermal"] = model_kind == "PEMFC_thermal"
+                    model = PEMFC(param=p_pemfc, operating_inputs=op,
                                   variable_names=solver_variable_names,
                                   flux_names=solver_flux_names)
-                    y0 = init_x(op, params)
+                    y0 = init_x(op, p_pemfc)
                 else:
                     p_aux = dict(params); p_aux["aux_system"] = True
                     y0 = init_x_for("dynamic", op, p_aux)

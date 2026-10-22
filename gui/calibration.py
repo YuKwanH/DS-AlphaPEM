@@ -110,8 +110,7 @@ OPTIMIZER_DEFAULT = "TPE (Optuna)"
 MODEL_VARIANTS = ("Static", "Dual-scale", "Dynamic")
 
 # Default calibration case. ``Dynamic`` with auxiliary disabled is routed to
-# the same PEMFC backend, but displaying that combination is misleading; use
-# the backend's honest model label directly.
+# PEMFC with the PEMFC_dyn thermal model (backend label ``PEMFC_thermal``).
 DEFAULT_MODEL_VARIANT = "Dual-scale"
 DEFAULT_AUX_SYSTEM = False
 DEFAULT_CONDITIONS = (
@@ -481,7 +480,7 @@ def _render_optimizer_panel(state):
     else:
         # Resolve transient class to set the right settle time.
         kind = calib_backend.resolve_transient_model(cfg["model"], cfg["aux_system"])
-        settle = (calib_backend.SETTLE_S_PEMFC if kind == "PEMFC"
+        settle = (calib_backend.SETTLE_S_PEMFC if kind in ("PEMFC", "PEMFC_thermal")
                   else calib_backend.SETTLE_S_PEMFC_DYN)
         # Wall-time per integration is roughly the settle time at default mesh.
         per_trial_s = settle * n_pts_est * n_conds

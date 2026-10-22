@@ -9,7 +9,7 @@ is reachable from this script:
   * Same five test profiles built by ``gui.profiles``: Constant, Step,
     Polarization, EIS, AST cycling.
   * Same auto-routing (``Dual-scale`` + aux -> ``PEMFC_dyn``;
-    ``Dynamic`` + no-aux -> ``PEMFC``).
+    ``Dynamic`` + no-aux -> ``PEMFC`` with its thermal model on).
   * Same 0D benchmark companion toggle.
   * Same ODE solver dispatch through ``gui.runner.run()`` — the
     integration loop is not re-implemented here.
@@ -48,7 +48,8 @@ MODEL_VARIANT = "Dual-scale"
 #   Dual-scale + True  -> PEMFC_dyn (auto-promote; PEMFC has no BoP code)
 #   Dual-scale + False -> PEMFC
 #   Dynamic    + True  -> PEMFC_dyn
-#   Dynamic    + False -> PEMFC     (auto-demote; PEMFC_dyn needs BoP)
+#   Dynamic    + False -> PEMFC + thermal model (node temperatures of PEMFC_dyn;
+#                          PEMFC_dyn itself needs BoP)
 AUX_SYSTEM = False
 
 # ---- Operating point (matches GUI § 1 Operating section) ------------------
