@@ -79,11 +79,11 @@ def dxdt_MEM(dif, x, epsilon_mc, Hcl, Hmem,n_mem, Ucell, Tfc,
         dif[f'dlambda_mem_{i} / dt'] = M_eq / rho_mem * (J_lambda_mem[i-2] - J_lambda_mem[i-1]) / (Hmem/n_mem)
     dif[f'dlambda_mem_{n_mem} / dt'] = M_eq / rho_mem * (J_lambda_mem[-1] - J_lambda_mem_ccl) / (Hmem/n_mem + Hcl)
     # #Crossover fluxes of O2 and H2 in the membrane
-    # dif[f'dC_H2_mem_{1} / dt'] = (J_H2_acl_mem - J_H2_mem[0]) / (Hmem / n_mem+Hcl)
-    # dif[f'dC_O2_mem_{n_mem} / dt'] = (J_O2_mem[n_mem - 1] - J_O2_mem_ccl) / (Hmem / n_mem+ Hcl)
-    # for i in np.arange(2, n_mem):
-    #     dif[f'dC_O2_mem_{i} / dt'] = (J_O2_mem[i - 1] - J_O2_mem[i]) / (Hmem / n_mem)
-    #     dif[f'dC_H2_mem_{i} / dt'] = (J_H2_mem[i - 1] - J_H2_mem[i]) / (Hmem / n_mem) # + S_Pt2_mem[i - 1]
+    dif[f'dC_H2_mem_{1} / dt'] = (J_H2_acl_mem - J_H2_mem[0]) / (Hmem / n_mem+Hcl)
+    dif[f'dC_O2_mem_{n_mem} / dt'] = (J_O2_mem[n_mem - 1] - J_O2_mem_ccl) / (Hmem / n_mem+ Hcl)
+    for i in np.arange(2, n_mem):
+        dif[f'dC_O2_mem_{i} / dt'] = (J_O2_mem[i - 1] - J_O2_mem[i]) / (Hmem / n_mem)
+        dif[f'dC_H2_mem_{i} / dt'] = (J_H2_mem[i - 1] - J_H2_mem[i]) / (Hmem / n_mem) # + S_Pt2_mem[i - 1]
     #     dif[f'dC_Pt2_mem_{i} / dt'] = 0 #((J_Pt2_mem[i-1] - J_Pt2_mem[i]) / (Hmem / n_mem)) / (1 - epsilon_mc)  # + S_Pt2_mem[i - 1]
     # dif[f'dC_H2_mem_{n_mem} / dt'] = (J_H2_mem[- 1] - 0) / (Hmem / n_mem)
     # Thickness degradation

@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MaxNLocator
 import numpy as np
 
 from config.settings import (
@@ -27,6 +28,73 @@ DYN_NAME_GROUPS = (
     ("lambda",     nodes_lambda),
     ("T",          nodes_T),
 )
+
+# Membrane-zoom insets for the crossover panels. The membrane is ~1/30 of a
+# GDL thick, so its profile collapses to a vertical line at full scale.
+# Each inset sits in the half of its panel that never carries data: H2 only
+# exists on the anode side + membrane (right half empty), O2 only on the
+# membrane + cathode side (left half empty). Bounds are axes fractions
+# (x0, y0, width, height).
+ZOOM_INSETS = {
+    "H2": (0.55, 0.22, 0.42, 0.66),
+    "O2": (0.05, 0.30, 0.42, 0.62),
+}
+
+
+def _zoom_window():
+    """x-range of the membrane, padded slightly so the edge nodes are visible.
+
+    The pad stays well under Hcl/2, so the catalyst-layer nodes (and their
+    much larger gas-phase concentrations) fall outside the window and do
+    not flatten the membrane gradient when the y-range is autoscaled.
+    """
+    x_lo, x_hi = borders[3], borders[4]
+    pad = 0.04 * (x_hi - x_lo)
+    return x_lo - pad, x_hi + pad
+
+
+def _add_zoom_inset(ax, bounds):
+    inset = ax.inset_axes(bounds)
+    x_lo, x_hi = _zoom_window()
+    inset.set_xlim(x_lo, x_hi)
+    for x in (borders[3], borders[4]):
+        inset.axvline(x=x, color="tab:gray", linestyle="--", linewidth=0.7, alpha=0.6)
+    inset.set_facecolor("white")
+    inset.grid(True, alpha=0.25)
+    inset.set_title("Membrane (zoom)", fontsize=8, pad=3)
+    inset.tick_params(labelsize=7)
+    inset.xaxis.set_major_locator(MaxNLocator(3))
+    inset.yaxis.set_major_locator(MaxNLocator(4))
+    inset.ticklabel_format(axis="x", style="sci", scilimits=(0, 0), useMathText=True)
+    inset.xaxis.get_offset_text().set_fontsize(7)
+    # Mark the zoomed band on the parent panel so the inset reads as a
+    # magnification of that strip, not a separate plot.
+    ax.axvspan(borders[3], borders[4], color="tab:blue", alpha=0.08, linewidth=0)
+    ax._mfc_zoom = inset
+
+
+def _rescale_zoom_y(inset):
+    """Autoscale the inset's y-range to the data inside its x-window only."""
+    x_lo, x_hi = inset.get_xlim()
+    ys = []
+    for line in inset.get_lines():
+        if line.get_gid() != "mfc_profile":   # skip the axvline border markers
+            continue
+        x, y = (np.asarray(a, dtype=float) for a in line.get_data())
+        mask = (x >= x_lo) & (x <= x_hi) & np.isfinite(y)
+        ys.extend(y[mask].tolist())
+    if not ys:
+        return
+    y_lo, y_hi = min(ys), max(ys)
+    span = y_hi - y_lo
+    scale = max(abs(y_lo), abs(y_hi))
+    if span > 1e-9 * max(scale, 1.0):
+        pad = 0.12 * span
+    else:
+        # Flat profile (e.g. crossover not yet developed): give it a readable
+        # band instead of a ±1e-12 window with a meaningless offset label.
+        pad = max(0.05 * scale, 1e-3)
+    inset.set_ylim(y_lo - pad, y_hi + pad)
 
 
 def _setup_axes(fig=None, axes=None, Tfc=None):
@@ -59,6 +127,8 @@ def _setup_axes(fig=None, axes=None, Tfc=None):
                       label=r"$C_{v,sat}(T_{fc})$")
         if profile_key == "lambda":
             ax.set_xlim(borders[2], borders[5])
+        if profile_key in ZOOM_INSETS:
+            _add_zoom_inset(ax, ZOOM_INSETS[profile_key])
     return fig, axes
 
 
@@ -78,9 +148,17 @@ def _plot_panels(axes, profile_1d, label, color, linestyle, marker, linewidth, m
         if values is None or len(values) == 0:
             continue
         y = expand_profile_on_nodes(profile_key, values)
-        ax.plot(nodes, y, label=label,
-                color=color, linestyle=linestyle, marker=marker,
-                linewidth=linewidth, markersize=markersize)
+        line, = ax.plot(nodes, y, label=label,
+                        color=color, linestyle=linestyle, marker=marker,
+                        linewidth=linewidth, markersize=markersize)
+        inset = getattr(ax, "_mfc_zoom", None)
+        if inset is not None:
+            # Reuse the drawn line's colour so overlaid conditions keep the
+            # same colour in the inset as in the main panel.
+            inset.plot(nodes, y, color=line.get_color(), linestyle=linestyle,
+                       marker=marker, linewidth=linewidth, markersize=markersize,
+                       gid="mfc_profile")
+            _rescale_zoom_y(inset)
 
 
 def _read_dyn_value(source, name, t_index):

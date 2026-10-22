@@ -32,6 +32,7 @@ from config.initialize import parameters, operating_inputs
 from gui import profiles
 from gui.runner import run as run_simulation
 from gui.runner import run_0d_companion
+from modules.display import build_profile_dyn
 
 
 # =============================================================================
@@ -103,6 +104,15 @@ BENCHMARK_0D = False             # True -> also run PEMFC_0D for overlay
 
 # ---- Plotting -------------------------------------------------------------
 SHOW_PLOTS = True                # True -> open the matplotlib window at end
+
+# ---- Spatial profile (matches GUI "Spatial profile" tab) ------------------
+# Through-plane snapshot of vapor, O2, H2, saturation, lambda and T, drawn by
+# the same modules.display code the GUI uses (incl. the membrane zoom insets).
+# PROFILE_TIMES_S lists the snapshot times in seconds; each is snapped to the
+# nearest stored time step and overlaid on one figure. None = final time.
+SHOW_SPATIAL_PROFILE = True
+PROFILE_TIMES_S      = [None]    # e.g. [5.0, 10.0, None]
+PRINT_MEM_PROFILE    = True      # True -> print membrane H2/O2/lambda per node
 
 
 # =============================================================================
@@ -229,8 +239,47 @@ def _plot(model, bench_info):
 
     fig.suptitle(f"PEMFC simulator -- {MODEL_VARIANT} ({PROFILE_KIND})  "
                  f"Tfc={TFC} K  Pc={PC_DES/1e5:.2f} bar")
-    plt.tight_layout()
-    plt.show()
+    fig.tight_layout()
+
+
+def _snapshot_indices(model):
+    """Map PROFILE_TIMES_S to (index, actual time) on the stored trajectory."""
+    t = np.asarray(model.variables.get("t", []), dtype=float)
+    if t.size == 0:
+        return []
+    picks = []
+    for t_req in PROFILE_TIMES_S:
+        idx = t.size - 1 if t_req is None else int(np.argmin(np.abs(t - t_req)))
+        if t_req is not None and not (t[0] <= t_req <= t[-1]):
+            print(f"   (spatial profile: t={t_req} s outside "
+                  f"[{t[0]:.3f}, {t[-1]:.3f}] s -> using t={t[idx]:.3f} s)")
+        if idx not in [p[0] for p in picks]:
+            picks.append((idx, float(t[idx])))
+    return picks
+
+
+def _print_mem_profile(model, idx, t_val):
+    n_mem = int(parameters["n_mem"])
+    print(f"\n   Membrane profile at t = {t_val:.3f} s  (node 1 = anode side)")
+    print(f"   {'node':>6} {'C_H2_mem':>14} {'C_O2_mem':>14} {'lambda_mem':>12}")
+    for i in range(1, n_mem + 1):
+        row = []
+        for name in (f"C_H2_mem_{i}", f"C_O2_mem_{i}", f"lambda_mem_{i}"):
+            seq = model.variables.get(name)
+            row.append(float(seq[idx]) if seq is not None else float("nan"))
+        print(f"   {i:>6} {row[0]:>14.6e} {row[1]:>14.6e} {row[2]:>12.4f}")
+
+
+def _plot_spatial(model, picks):
+    fig = axes = None
+    for idx, t_val in picks:
+        fig, axes = build_profile_dyn(model, t_index=idx, label=f"t = {t_val:.2f} s",
+                                      fig=fig, axes=axes, Tfc=TFC)
+    handles, labels = axes[0].get_legend_handles_labels()
+    if handles:
+        axes[0].legend(handles, labels, fontsize=8, loc="best")
+    fig.suptitle(f"Through-plane profile -- {MODEL_VARIANT} ({PROFILE_KIND})")
+    fig.tight_layout()
 
 
 def main():
@@ -299,8 +348,16 @@ def main():
     if i_fc is not None and len(i_fc):
         print(f"   i_fc  (final) : {i_fc[-1]:.1f} A/m^2")
 
+    picks = _snapshot_indices(model) if (SHOW_SPATIAL_PROFILE or PRINT_MEM_PROFILE) else []
+    if PRINT_MEM_PROFILE:
+        for idx, t_val in picks:
+            _print_mem_profile(model, idx, t_val)
+
     if SHOW_PLOTS:
         _plot(model, bench_info)
+        if SHOW_SPATIAL_PROFILE and picks:
+            _plot_spatial(model, picks)
+        plt.show()
 
 
 if __name__ == "__main__":

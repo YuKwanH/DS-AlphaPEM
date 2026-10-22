@@ -277,9 +277,10 @@ def render(state, on_run=None):
             min_value=1.0, step=10.0, format="%.1f",
             key="results_xaxis_max",
             label_visibility="collapsed",
-            help="Upper limit on the time axis for every panel that plots vs "
-                 "time (Cell performance, Manifolds, Water content, "
-                 "Degradation, Custom). Only affects display — the underlying "
+            help="Show the LAST N seconds of the simulation on every panel "
+                 "that plots vs time (Cell performance, Manifolds, Water "
+                 "content, Degradation, Custom). E.g. 90 on a 300 s run shows "
+                 "t = 210–300 s. Only affects display — the underlying "
                  "trajectory is unchanged.",
         ))
     with hold_col:
