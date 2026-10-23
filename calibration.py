@@ -5,9 +5,9 @@ then run ``python calibration.py``.  ``python calibration.py --verify`` runs
 short, non-optimizing checks for all three workflows.
 
 The ECSA and Hmem workflows are executable versions of the two calibration
-notebooks in the repository.  The dual-scale workflow fits PEMFC parameters
-against polarization or HFR measurements using the shared calibration
-backend.
+notebooks in the repository.  The dual-scale workflow fits the dynamic
+balance-of-plant PEMFC model (``PEMFC_dyn``) against polarization or HFR
+measurements using the shared calibration backend.
 """
 
 # =============================================================================
@@ -102,29 +102,35 @@ HMEM_MAX_STEP_SECONDS = 10.0
 # Experimental target: "Polarization" or "HFR".
 DUAL_SCALE_TARGET = "Polarization"
 
-# This workflow calibrates the transient dual-scale PEMFC model.
-DUAL_SCALE_MODEL = "Dual-scale"
+# This workflow calibrates the transient dual-scale PEMFC model together
+# with its balance-of-plant (BoP) auxiliaries -- i.e. the dynamic
+# ``PEMFC_dyn`` model (compressor + supply/exhaust manifolds).
+DUAL_SCALE_MODEL = "Dynamic"
 
-# The dual-scale model uses ideal fixed gas supplies without the auxiliary
-# balance-of-plant model.  Choose its transient integrator here.
-DUAL_SCALE_AUX_SYSTEM = False
+# The dynamic BoP model simulates the auxiliaries that supply the gases, so
+# the auxiliary system is enabled (``Dynamic`` + aux -> ``PEMFC_dyn``).
+# Choose its transient integrator here.
+DUAL_SCALE_AUX_SYSTEM = True
 DUAL_SCALE_METHOD = "BDF"
 
 # Optimizer: "TPE (Optuna)", "Genetic algorithm", or "Grid search".
 DUAL_SCALE_OPTIMIZER = "TPE (Optuna)"
 DUAL_SCALE_N_TRIALS = 200
-DUAL_SCALE_SEED = 42
+DUAL_SCALE_SEED = 9
 
 # Leave empty to use every condition in the selected experimental dataset.
+# P500 humidified (HRC50) temperature sweep.  Note the dataset has no dry
+# (HRC0) case at P500 -- dry baselines exist only at P300 -- so a dry P500
+# condition cannot be used here.
 DUAL_SCALE_CONDITIONS = [
-    "T50_P300_HRC0",
-    "T50_P300_HRC50",
     "T50_P500_HRC50",
+    "T60_P500_HRC50",
+    "T70_P500_HRC50",
 ]
 
 # Parameters and bounds used by the dual-scale calibration.
 DUAL_SCALE_PARAMS_TO_FIT = {
-    "OCV": (0.90, 1.00),
+    "OCV": (0.95, 0.98),
     "i0_c_ref": (0.01, 15.0),
     "kappa_c": (0.5, 3.0),
     "epsilon_mc": (0.15, 0.5),
@@ -236,6 +242,76 @@ def _print_progress(done, total, best_loss=None, *, label="Calibration"):
         end="",
         flush=True,
     )
+
+
+class _TkProgressDialog:
+    """A tkinter progress-bar dialog for long calibrations.
+
+    Driven by the same ``on_progress(done, total, best_loss)`` signature the
+    terminal bar uses, so it can be dropped into any ``run_calibration``
+    call. The calibration loop is synchronous on the main thread, so each
+    callback pumps the Tk event loop via ``update()`` to refresh the window
+    (it advances one step per completed trial). If tkinter is unavailable
+    (e.g. a headless run) the dialog silently disables itself and the caller
+    keeps using the console bar, so nothing breaks.
+    """
+
+    def __init__(self, title="Calibration", label="Running", total=100):
+        self.ok = False
+        self._label = label
+        self._start = time.perf_counter()
+        try:
+            import tkinter as tk
+            from tkinter import ttk
+        except Exception:
+            return
+        try:
+            self.root = tk.Tk()
+            self.root.title(title)
+            self.root.resizable(False, False)
+            self._status = tk.StringVar(value="Starting ...")
+            self._detail = tk.StringVar(value="")
+            ttk.Label(self.root, textvariable=self._status,
+                      font=("Segoe UI", 10)).pack(padx=18, pady=(16, 6), anchor="w")
+            self._bar = ttk.Progressbar(self.root, length=400,
+                                        mode="determinate", maximum=max(1, total))
+            self._bar.pack(padx=18, pady=2)
+            ttk.Label(self.root, textvariable=self._detail,
+                      font=("Segoe UI", 9), foreground="#555").pack(
+                          padx=18, pady=(6, 16), anchor="w")
+            self.root.update()
+            self.ok = True
+        except Exception:
+            self.ok = False
+
+    def update(self, done, total, best_loss=None):
+        """Advance the bar; safe to call as the ``on_progress`` callback."""
+        if not self.ok:
+            return
+        try:
+            total = max(1, total)
+            self._bar["maximum"] = total
+            self._bar["value"] = min(done, total)
+            pct = 100.0 * done / total
+            elapsed = time.perf_counter() - self._start
+            eta = (elapsed / done * (total - done)) if done > 0 else 0.0
+            self._status.set(f"{self._label}: trial {done} / {total}  ({pct:.0f}%)")
+            detail = f"elapsed {elapsed:,.0f}s    eta {eta:,.0f}s"
+            if best_loss is not None:
+                detail += f"    best loss = {float(best_loss):.4g}"
+            self._detail.set(detail)
+            self.root.update()
+        except Exception:
+            self.ok = False
+
+    def close(self):
+        if not self.ok:
+            return
+        try:
+            self.root.destroy()
+        except Exception:
+            pass
+        self.ok = False
 
 
 # =============================================================================
@@ -887,13 +963,48 @@ def _build_dual_scale_request():
     }
 
 
+def _time_single_polarization(request, data):
+    """Time one polarization-curve simulation and print the cost estimate.
+
+    Runs the configured transient model (``PEMFC_dyn``) once over the first
+    condition's measured currents at the default parameters, timing it with
+    the exact backend objective the optimizer will call. Prints the single
+    simulation time plus a rough estimate of the full optimization, so the
+    user can judge the runtime before the calibration starts. Returns the
+    measured per-condition time in seconds.
+    """
+    from gui.calib_backend import make_objective
+
+    cond = request["conditions"][0]
+    objective, _exp, _predict = make_objective(
+        request["target"], deepcopy(DEFAULT_PARAMETERS), data, [cond],
+        model_variant=request["model"], aux_system=request["aux_system"],
+        method=request["method"],
+    )
+    print(f"Timing one {request['target']} simulation "
+          f"(condition {cond}, default parameters) ...")
+    t0 = time.perf_counter()
+    objective({})  # one full polarization curve through PEMFC_dyn
+    dt = time.perf_counter() - t0
+
+    n_cond = len(request["conditions"])
+    n_trials = int(request["n_trials"])
+    est_total = dt * n_cond * n_trials
+    print(f"  Single polarization simulation: {dt:.2f} s")
+    print(f"  Estimated full run ({n_cond} conditions x {n_trials} trials): "
+          f"~{est_total / 60.0:.1f} min ({est_total / 3600.0:.2f} h)")
+    print("=" * 70)
+    return dt
+
+
 def run_dual_scale_calibration():
-    """Fit parameters of the transient dual-scale PEMFC model."""
+    """Fit parameters of the transient dual-scale PEMFC model with its
+    balance-of-plant auxiliaries (the dynamic ``PEMFC_dyn`` model)."""
     request = _build_dual_scale_request()
-    if request["model"] != "Dual-scale" or request["aux_system"]:
+    if request["model"] != "Dynamic" or not request["aux_system"]:
         raise ValueError(
-            "Dual-scale calibration requires DUAL_SCALE_MODEL='Dual-scale' "
-            "and DUAL_SCALE_AUX_SYSTEM=False."
+            "Dual-scale calibration requires DUAL_SCALE_MODEL='Dynamic' and "
+            "DUAL_SCALE_AUX_SYSTEM=True (the dynamic BoP PEMFC_dyn model)."
         )
     data = export_experiment_data(_dataset_key(request["target"]))
     if not request["conditions"]:
@@ -914,14 +1025,30 @@ def run_dual_scale_calibration():
     print(f"Parameters: {request['params']}")
     print("=" * 70)
 
-    result = run_calibration(
-        request,
-        baseline_params=deepcopy(DEFAULT_PARAMETERS),
-        data=data,
-        on_progress=lambda done, total, best: _print_progress(
-            done, total, best, label="Dual-scale trials"
-        ),
+    # Benchmark one polarization simulation before the optimization starts.
+    _time_single_polarization(request, data)
+
+    # Show a tkinter progress dialog alongside the console bar. The dialog
+    # disables itself gracefully if tkinter is unavailable (headless run).
+    dialog = _TkProgressDialog(
+        title="Dual-scale PEMFC calibration",
+        label="Dual-scale trials",
+        total=int(request["n_trials"]),
     )
+
+    def _on_progress(done, total, best):
+        _print_progress(done, total, best, label="Dual-scale trials")
+        dialog.update(done, total, best)
+
+    try:
+        result = run_calibration(
+            request,
+            baseline_params=deepcopy(DEFAULT_PARAMETERS),
+            data=data,
+            on_progress=_on_progress,
+        )
+    finally:
+        dialog.close()
     result = {"calibration": "Dual-scale", **result}
     print("\n")
     print(f"Best loss: {result['best_loss']:.6g}")
@@ -1060,9 +1187,10 @@ def verify_calibration_file():
         f"(A_1={hmem_fit['best_a1']:.6g}, evals={hmem_fit['n_evals']})"
     )
 
-    # Confirm that the third workflow is a no-auxiliary dual-scale request.
-    # A short Static objective check exercises the shared data/objective path
-    # without spending minutes on transient settling during verification.
+    # Confirm that the third workflow is a dynamic BoP request that resolves
+    # to PEMFC_dyn.  A short Static objective check exercises the shared
+    # data/objective path without spending minutes on transient settling
+    # during verification.
     from gui.calib_backend import (
         FAILURE_LOSS,
         make_objective,
@@ -1070,11 +1198,11 @@ def verify_calibration_file():
     )
 
     dual_scale_request = _build_dual_scale_request()
-    assert dual_scale_request["model"] == "Dual-scale"
-    assert dual_scale_request["aux_system"] is False
+    assert dual_scale_request["model"] == "Dynamic"
+    assert dual_scale_request["aux_system"] is True
     assert resolve_transient_model(
         dual_scale_request["model"], dual_scale_request["aux_system"]
-    ) == "PEMFC"
+    ) == "PEMFC_dyn"
 
     data = export_experiment_data("pola")
     condition = sorted(data)[0]
@@ -1090,7 +1218,7 @@ def verify_calibration_file():
     backend_loss = float(objective({}))
     assert math.isfinite(backend_loss) and backend_loss < FAILURE_LOSS
     print(
-        "  [ok] dual-scale request resolves to PEMFC and shared objective "
+        "  [ok] dual-scale request resolves to PEMFC_dyn and shared objective "
         f"loads data (smoke loss={backend_loss:.6g})"
     )
 
